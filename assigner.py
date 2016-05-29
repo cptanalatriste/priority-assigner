@@ -21,7 +21,7 @@ import fselect
 CSV_FILE = "C:\Users\Carlos G. Gavidia\git\github-data-miner\Release_Counter_.csv"
 
 
-def get_issues_dataframe(filename):
+def filter_issues_dataframe(original_dataframe):
     """
     Returns a dataframe of issues that: Are resolved, have a commit in Git, were not resolved by the reported and had
     a priority change not made by the reporter.
@@ -30,11 +30,10 @@ def get_issues_dataframe(filename):
 
     :return: Filtered dataframe
     """
-    issue_dataframe = pd.read_csv(filename)
-    print "Loaded ", len(
-        issue_dataframe.index), " resolved issues with Git Commits, solved by a third-party from ", filename
 
-    issue_dataframe = issue_dataframe.dropna(subset=['Priority Changer', 'GitHub Distance in Releases'])
+    print "Total columns in dataframe: ", len(original_dataframe.columns)
+
+    issue_dataframe = original_dataframe.dropna(subset=['Priority Changer', 'GitHub Distance in Releases'])
     print len(issue_dataframe.index), " issues had a change in the reported priority and release information in Git."
 
     issue_dataframe = issue_dataframe[issue_dataframe['Priority Changer'] != issue_dataframe['Reported By']]
@@ -56,8 +55,16 @@ def encode_class_label(issue_dataframe, class_label):
                         'Minor': 4,
                         'Trivial': 5}
 
-    issue_dataframe[class_label] = issue_dataframe['Priority'].map(priority_mapping)
+    original_label = 'Priority'
+    issue_dataframe[class_label] = issue_dataframe[original_label].map(priority_mapping)
     issue_dataframe['Severe'] = issue_dataframe[class_label] <= 2
+
+    simplified_mapping = {'Blocker': 1,
+                          'Critical': 1,
+                          'Major': 2,
+                          'Minor': 3,
+                          'Trivial': 3}
+    issue_dataframe['Simplified ' + class_label] = issue_dataframe[original_label].map(simplified_mapping)
 
     return issue_dataframe
 
@@ -81,7 +88,7 @@ def encode_nominal_features(issue_dataframe, nominal_features):
         return issue_dataframe
 
 
-def escale_features(issues_train, issues_test, numerical_features):
+def escale_features(numerical_features, issues_train, issues_test):
     """
     Standarizes numerical information.
     :param issues_train: Train issue information.
@@ -97,6 +104,8 @@ def escale_features(issues_train, issues_test, numerical_features):
     for feature in numerical_features:
         scaler = StandardScaler()
         issues_train_std[feature] = scaler.fit_transform(issues_train[feature])
+
+        print "feature ", feature
         issues_test_std[feature] = scaler.transform(issues_test[feature])
 
     return issues_train_std, issues_test_std
@@ -131,7 +140,7 @@ def select_features_l1(issues_train_std, priority_train, issues_test_std, priori
     :param priority_train: Priorities for training.
     :param issues_test_std: Issues for testing.
     :param priority_test: Priorities for testing
-    :return: None
+    :return: The Logistic Regression classifier.
     """
     logistic_regression = LogisticRegression(penalty='l1', C=0.1)
     logistic_regression.fit(issues_train_std, priority_train)
@@ -141,6 +150,8 @@ def select_features_l1(issues_train_std, priority_train, issues_test_std, priori
 
     evaluate_performance("LOGIT-L1", logistic_regression, issues_train_std, priority_train, issues_test_std,
                          priority_test)
+
+    return logistic_regression
 
 
 def sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test):
@@ -162,7 +173,7 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
     for subset in feature_selector.subsets_:
 
         if len(subset) == 5:
-            print "Number of features: ", len(subset)
+            print "Number of features in subset: ", len(subset)
             print issues_train_std.columns[list(subset)]
             optimal_subset = list(subset)
 
@@ -225,18 +236,19 @@ def feature_importance_with_forest(issues_train, priority_train, issues_test, pr
                          priority_test)
 
 
-if __name__ == "__main__":
-    issue_dataframe = get_issues_dataframe(CSV_FILE)
+def prepare_for_training(issues_dataframe, class_label, numerical_features, nominal_features):
+    """
+    Filters only the relevant features, encodes de class label and the encodes nominal features.
+    :param issues_dataframe: Original dataframe.
+    :param class_label: Class label.
+    :param numerical_features: Numerical features.
+    :param nominal_features: Nominal features.
+    :return: Dataframe with features, series with labels.
+    """
+    issue_dataframe = encode_class_label(issues_dataframe, class_label)
 
-    class_label = 'Encoded Priority'
-    numerical_features = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Git Resolution Time',
-                          'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
-                          'Number of Reopens']
-
-    nominal_features = ['Git Repository']
-
-    issue_dataframe = encode_class_label(issue_dataframe, class_label)
-    # class_label = 'Severe'
+    class_label = 'Severe'
+    # class_label = 'Simplified ' + class_label
 
     issue_dataframe = issue_dataframe[numerical_features + nominal_features + [class_label]]
     issue_dataframe = encode_nominal_features(issue_dataframe, nominal_features)
@@ -246,14 +258,85 @@ if __name__ == "__main__":
 
     print "Number of features: ", len(issue_dataframe.columns)
 
-    issues_train, issues_test, priority_train, priority_test = train_test_split(issue_dataframe,
+    return issue_dataframe, encoded_priorities
+
+
+def train_and_predict(classifier, original_dataframe, training_dataframe, training_labels, class_label,
+                      numerical_features,
+                      nominal_features):
+    """
+    Taking an issues dataframe, it performs predictions based on a classifier.It writes the resulting dataframe to a file.
+    :param classifier: Classifier to use.
+    :param original_dataframe: Dataframe to predict.
+    :param training_dataframe: Dataframe containing training instances.
+    :param training_labels: Labels for the training dataset.
+    :param class_label: Class label.
+    :param numerical_features: Numerical Features.
+    :param nominal_features: Nominal features.
+    :return:
+    """
+
+    print "Missing data analysis ..."
+    print original_dataframe.isnull().sum()
+
+    # Temporarly, we are dropping NA values
+    temp_dataframe = original_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
+
+    # The following repositories were not in the training dataset
+    temp_dataframe = temp_dataframe[~temp_dataframe['Git Repository'].isin(['kylin', 'helix', 'mesos'])]
+
+    print "Starting prediction process..."
+    issues_dataframe, encoded_priorities = prepare_for_training(temp_dataframe, class_label, numerical_features,
+                                                                nominal_features)
+
+    training_std, original_std = escale_features(numerical_features, training_dataframe, issues_dataframe)
+    classifier.fit(training_std, training_labels)
+
+    print "Predicting ", len(original_std.index), " issue's priority"
+    test_predictions = classifier.predict(original_std)
+
+    temp_dataframe['Predicted ' + class_label] = test_predictions
+
+    file_name = "Including_Prediction.csv"
+    temp_dataframe.to_csv(file_name, index=False)
+
+    print "File ready: ", file_name
+
+
+if __name__ == "__main__":
+    original_dataframe = pd.read_csv(CSV_FILE)
+
+    print "Loaded ", len(
+        original_dataframe.index), " resolved issues with Git Commits, solved by a third-party from ", CSV_FILE
+
+    issues_dataframe = filter_issues_dataframe(original_dataframe)
+
+    class_label = 'Encoded Priority'
+    numerical_features = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Git Resolution Time',
+                          'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
+                          'Number of Reopens']
+
+    nominal_features = ['Git Repository']
+
+    figure, axes = plt.subplots(1, 1)
+    issues_dataframe['Git Repository'].value_counts(normalize=True).plot(kind='bar', ax=axes)
+    # plt.show()
+
+    issues_dataframe, encoded_priorities = prepare_for_training(issues_dataframe, class_label, numerical_features,
+                                                                nominal_features)
+
+    issues_train, issues_test, priority_train, priority_test = train_test_split(issues_dataframe,
                                                                                 encoded_priorities,
                                                                                 test_size=0.2, random_state=0)
 
     print len(issues_train.index), " issues on the train set."
 
-    issues_train_std, issues_test_std = escale_features(issues_train, issues_test, numerical_features)
+    issues_train_std, issues_test_std = escale_features(numerical_features, issues_train, issues_test)
 
-    select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
+    logit_classifier = select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
     sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
-    feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
+    # feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
+
+    train_and_predict(logit_classifier, original_dataframe, issues_dataframe, encoded_priorities, class_label,
+                      numerical_features,
+                      nominal_features)
