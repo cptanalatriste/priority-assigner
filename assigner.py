@@ -39,14 +39,15 @@ def get_issues_dataframe(filename):
 
     issue_dataframe = issue_dataframe[issue_dataframe['Priority Changer'] != issue_dataframe['Reported By']]
     print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
+
     return issue_dataframe
 
 
 def encode_class_label(issue_dataframe, class_label):
     """
-    Replaces the priority as String for a numerical value.
+    Replaces the priority as String for a numerical value. It also adds the Severe column (Boolean, true if it is a Blocker or Critical issue.)
     :param issue_dataframe: Original dataframe
-    :param class_label: Column containing Priority Information
+    :param class_label: Column containing encoded Priority Information
     :return: New dataframe
     """
     priority_mapping = {'Blocker': 1,
@@ -56,6 +57,8 @@ def encode_class_label(issue_dataframe, class_label):
                         'Trivial': 5}
 
     issue_dataframe[class_label] = issue_dataframe['Priority'].map(priority_mapping)
+    issue_dataframe['Severe'] = issue_dataframe[class_label] <= 2
+
     return issue_dataframe
 
 
@@ -233,6 +236,8 @@ if __name__ == "__main__":
     nominal_features = ['Git Repository']
 
     issue_dataframe = encode_class_label(issue_dataframe, class_label)
+    # class_label = 'Severe'
+
     issue_dataframe = issue_dataframe[numerical_features + nominal_features + [class_label]]
     issue_dataframe = encode_nominal_features(issue_dataframe, nominal_features)
 
