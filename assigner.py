@@ -8,10 +8,13 @@ from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.feature_selection import SelectFromModel
 
 from sklearn.metrics import classification_report
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 import fselect
 
@@ -96,19 +99,19 @@ def escale_features(issues_train, issues_test, numerical_features):
     return issues_train_std, issues_test_std
 
 
-def evaluate_performance(prefix, classifier, issues_train_std, priority_train, issues_test_std, priority_test):
+def evaluate_performance(prefix, classifier, issues_train, priority_train, issues_test_std, priority_test):
     """
     Calculates performance metrics for a classifier.
     :param prefix: A prefix, for identifying the classifier.
     :param classifier: The classifier.
-    :param issues_train_std: Train features.
+    :param issues_train: Train features.
     :param priority_train: Train class.
     :param issues_test_std: Test features.
     :param priority_test: Test class.
     :return: None.
     """
-    print prefix, ': Training accuracy ', classifier.score(issues_train_std, priority_train)
-    train_predictions = classifier.predict(issues_train_std)
+    print prefix, ': Training accuracy ', classifier.score(issues_train, priority_train)
+    train_predictions = classifier.predict(issues_train)
     print prefix, " :TRAIN DATA SET"
     print classification_report(y_true=priority_train, y_pred=train_predictions)
 
@@ -180,6 +183,45 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
     evaluate_performance("KNN-OPT", knn_classifier, new_train, priority_train, new_test, priority_test)
 
 
+def feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test):
+    """
+    Assess feature importance using a Random Forest.
+    :param issues_train: Train features.
+    :param priority_train: Train classes.
+    :param issues_test: Test features.
+    :param priority_test: Test classes.
+    :return: None
+    """
+    print "Building Random Forest Classifier ..."
+    rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
+    rforest_classifier.fit(issues_train, priority_train)
+
+    importances = rforest_classifier.feature_importances_
+    indices = np.argsort(importances)[::-1]
+
+    for column_index in range(len(issues_train.columns)):
+        print column_index + 1, ") ", issues_train.columns[column_index], " ", importances[indices[column_index]]
+
+    plt.title('Feature importance')
+    plt.bar(range(len(issues_train.columns)), importances[indices], color='lightblue', align='center')
+    plt.xticks(range(len(issues_train.columns)), issues_train.columns, rotation=90)
+    plt.xlim([-1, len(issues_train.columns)])
+    plt.tight_layout()
+    # plt.show()
+
+    evaluate_performance("FOREST", rforest_classifier, issues_train, priority_train, issues_test, priority_test)
+
+    print "Selecting important features ..."
+    select = SelectFromModel(rforest_classifier, threshold=0.05, prefit=True)
+
+    train_selected = select.transform(issues_train)
+    test_selected = select.transform(issues_test)
+
+    rforest_classifier.fit(train_selected, priority_train)
+    evaluate_performance("FOREST-IMPORTANT", rforest_classifier, train_selected, priority_train, test_selected,
+                         priority_test)
+
+
 if __name__ == "__main__":
     issue_dataframe = get_issues_dataframe(CSV_FILE)
 
@@ -209,3 +251,4 @@ if __name__ == "__main__":
 
     select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
     sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
+    feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
