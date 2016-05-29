@@ -140,11 +140,11 @@ def select_features_l1(issues_train_std, priority_train, issues_test_std, priori
 def sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test):
     """
     Applies a sequential feature selection algorithm and evaluates its performance using a k-neighbors classifier (5 neighbors).
-    :param issues_train_std:
-    :param priority_train:
-    :param issues_test_std:
-    :param priority_test:
-    :return:
+    :param issues_train_std: Train features.
+    :param priority_train: Train classes.
+    :param issues_test_std: Test features.
+    :param priority_test: Test classes.
+    :return: None.
     """
 
     # TODO: What is the optimal number of neighbors?
@@ -162,13 +162,13 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
 
     num_features = [len(k) for k in feature_selector.subsets_]
     plt.plot(num_features, feature_selector.scores_, marker='o')
-    plt.ylim([0.0, 1.1])
+    plt.ylim([0.4, 1.1])
     plt.ylabel('Accuracy')
     plt.xlabel('Number of features')
     plt.grid()
 
     # Uncomment to display plot.
-    plt.show()
+    # plt.show()
 
     knn_classifier.fit(issues_train_std, priority_train)
     evaluate_performance("KNN-5NEIGH", knn_classifier, issues_train_std, priority_train, issues_test_std, priority_test)
