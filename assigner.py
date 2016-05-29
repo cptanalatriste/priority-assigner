@@ -196,6 +196,8 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
     knn_classifier.fit(new_train, priority_train)
     evaluate_performance("KNN-OPT", knn_classifier, new_train, priority_train, new_test, priority_test)
 
+    return knn_classifier
+
 
 def feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test):
     """
@@ -283,24 +285,38 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
     temp_dataframe = original_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
 
     # The following repositories were not in the training dataset
-    temp_dataframe = temp_dataframe[~temp_dataframe['Git Repository'].isin(['kylin', 'helix', 'mesos'])]
+    repository_label = 'Git Repository'
+    temp_dataframe = temp_dataframe[~temp_dataframe[repository_label].isin(['kylin', 'helix', 'mesos'])]
 
     print "Starting prediction process..."
     issues_dataframe, encoded_priorities = prepare_for_training(temp_dataframe, class_label, numerical_features,
                                                                 nominal_features)
 
     training_std, original_std = escale_features(numerical_features, training_dataframe, issues_dataframe)
+
     classifier.fit(training_std, training_labels)
+    print "Training score: ", classifier.score(training_std, training_labels)
+    train_predictions = classifier.predict(training_std)
+    print classification_report(y_true=training_labels, y_pred=train_predictions)
 
     print "Predicting ", len(original_std.index), " issue's priority"
     test_predictions = classifier.predict(original_std)
 
-    temp_dataframe['Predicted ' + class_label] = test_predictions
+    predicted_label = 'Predicted ' + class_label
+    temp_dataframe[predicted_label] = test_predictions
 
     file_name = "Including_Prediction.csv"
     temp_dataframe.to_csv(file_name, index=False)
 
     print "File ready: ", file_name
+
+    for repository in temp_dataframe[repository_label].unique():
+        issues_for_repo = temp_dataframe[temp_dataframe[repository_label] == repository]
+        severe_issues = issues_for_repo[issues_for_repo['Severe']]
+        inflated_issues = severe_issues[~severe_issues[predicted_label]]
+
+        print "repository: ", repository, " Reported Severe: ", len(severe_issues.index), " Severe inflated: ", len(
+            inflated_issues.index), ' ratio: ', len(inflated_issues.index) / float(len(severe_issues.index))
 
 
 if __name__ == "__main__":
@@ -334,9 +350,9 @@ if __name__ == "__main__":
     issues_train_std, issues_test_std = escale_features(numerical_features, issues_train, issues_test)
 
     logit_classifier = select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
-    sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
-    # feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
+    knn_classifier = sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
+    forest_classifier = feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
 
-    train_and_predict(logit_classifier, original_dataframe, issues_dataframe, encoded_priorities, class_label,
+    train_and_predict(knn_classifier, original_dataframe, issues_dataframe, encoded_priorities, class_label,
                       numerical_features,
                       nominal_features)
