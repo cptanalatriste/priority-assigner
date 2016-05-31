@@ -18,6 +18,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.learning_curve import learning_curve
 from sklearn.learning_curve import validation_curve
 
+from sklearn.grid_search import GridSearchCV
+from sklearn.svm import SVC
+
 import assigner
 
 
@@ -134,6 +137,28 @@ def validation_curve_analysis(estimator=None, param_name=None, param_range=None,
     plt.show()
 
 
+def parameter_tuning(estimator=None, param_grid=None, issues_train=None, priority_train=None):
+    """
+    Applies grid search to find optimal parameter configuration.
+    :param estimator: Estimator
+    :param param_grid: Parameter grid.
+    :param issues_train: Train issues.
+    :param priority_train: Train priorities.
+    :return: Estimator with optimal configuration.
+    """
+    grid_search = GridSearchCV(estimator=estimator,
+                               param_grid=param_grid,
+                               scoring='accuracy',
+                               cv=10,
+                               n_jobs=-1)
+    grid_search = grid_search.fit(issues_train, priority_train)
+    print 'grid_search.best_score_: ', grid_search.best_score_
+    print 'grid_search.best_params_: ', grid_search.best_params_
+
+    best_estimator = grid_search.best_estimator_
+    return best_estimator
+
+
 def main():
     """
     Initial execution point.
@@ -160,8 +185,28 @@ def main():
     assigner.evaluate_performance("LOGIT-L2", lregression_l2, issues_train_std, priority_train, issues_test_std,
                                   priority_test)
 
-    param_range = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    print "Starting grid search ..."
+    param_range = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     validation_curve_analysis(lregression_l2, 'clf__C', param_range, issues_train_std, priority_train)
+
+    svm_pipeline = Pipeline([('clf', SVC(random_state=1))])
+    svm_param_grid = [{'clf__C': param_range,
+                       'clf__kernel': ['linear']},
+                      {'clf__C': param_range,
+                       'clf__gamma': param_range,
+                       'clf__kernel': ['rbf']}]
+
+    best_estimator = parameter_tuning(svm_pipeline, svm_param_grid, issues_train_std, priority_train)
+    best_estimator.fit(issues_train_std, priority_train)
+
+    assigner.evaluate_performance("SVM-AFTERGRID", best_estimator, issues_train_std, priority_train, issues_test_std,
+                                  priority_test)
+
+    # grid_search = GridSearchCV(estimator=svm_pipeline,
+    #                            param_grid=svm_param_grid,
+    #                            scoring='accuracy',
+    #                            cv=10,
+    #                            n_jobs=-1)
 
 
 if __name__ == "__main__":
