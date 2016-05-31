@@ -16,6 +16,7 @@ from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression
 
 from sklearn.learning_curve import learning_curve
+from sklearn.learning_curve import validation_curve
 
 import assigner
 
@@ -74,7 +75,14 @@ def cross_validation(classifier, issues_train_std, priority_train):
     print "CV Accuracy: Mean ", cv_mean, " Std: ", cv_std
 
 
-def validation_curve(estimator=None, issues_train=None, priority_train=None):
+def learning_curve_analysis(estimator=None, issues_train=None, priority_train=None):
+    """
+    Generates the learning curve for a especific estimator.
+    :param estimator: Estimator.
+    :param issues_train: Standarized train set.
+    :param priority_train: Priorities for train set.
+    :return: None.
+    """
     train_sizes, train_scores, test_scores = learning_curve(estimator=estimator, X=issues_train,
                                                             y=priority_train,
                                                             train_sizes=np.linspace(0.1, 1.0, 10),
@@ -101,6 +109,31 @@ def validation_curve(estimator=None, issues_train=None, priority_train=None):
     plt.show()
 
 
+def validation_curve_analysis(estimator=None, param_name=None, param_range=None, issues_train=None,
+                              priority_train=None):
+    train_scores, test_scores = validation_curve(estimator=estimator, X=issues_train, y=priority_train,
+                                                 param_name=param_name, param_range=param_range, cv=10)
+    train_mean = np.mean(train_scores, axis=1)
+    train_std = np.std(train_scores, axis=1)
+    test_mean = np.mean(test_scores, axis=1)
+    test_std = np.std(test_scores, axis=1)
+
+    _, _ = plt.subplots(figsize=(2.5, 2.5))
+    plt.plot(param_range, train_mean, color='blue', marker='o', markersize=5, label='training accuracy')
+    plt.fill_between(param_range, train_mean + train_std, train_mean - train_std, alpha=0.15, color='blue')
+
+    plt.plot(param_range, test_mean, color='green', linestyle='--', marker='s', markersize=5,
+             label='validation accuracy')
+    plt.fill_between(param_range, test_mean + test_std, test_mean - test_std, alpha=0.15, color='green')
+
+    plt.grid()
+    plt.xscale('log')
+    plt.xlabel('Parameter ' + param_name)
+    plt.ylabel('Accuracy')
+    plt.legend(loc='lower right')
+    plt.show()
+
+
 def main():
     """
     Initial execution point.
@@ -121,12 +154,14 @@ def main():
 
     lregression_l2 = Pipeline([('clf', LogisticRegression(penalty='l2',
                                                           random_state=0))])
-    validation_curve(lregression_l2, issues_train_std, priority_train)
+    # learning_curve_analysis(lregression_l2, issues_train_std, priority_train)
 
     lregression_l2.fit(issues_train_std, priority_train)
     assigner.evaluate_performance("LOGIT-L2", lregression_l2, issues_train_std, priority_train, issues_test_std,
                                   priority_test)
 
+    param_range = [0.001, 0.01, 0.1, 1.0, 10.0, 100.0]
+    validation_curve_analysis(lregression_l2, 'clf__C', param_range, issues_train_std, priority_train)
 
 
 if __name__ == "__main__":
