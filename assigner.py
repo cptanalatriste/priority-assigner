@@ -20,6 +20,12 @@ import fselect
 
 CSV_FILE = "C:\Users\Carlos G. Gavidia\git\github-data-miner\Release_Counter_.csv"
 
+CLASS_LABEL = 'Encoded Priority'
+NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Git Resolution Time',
+                      'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
+                      'Number of Reopens']
+NOMINAL_FEATURES = ['Git Repository']
+
 
 def filter_issues_dataframe(original_dataframe):
     """
@@ -88,7 +94,7 @@ def encode_nominal_features(issue_dataframe, nominal_features):
         return issue_dataframe
 
 
-def escale_features(numerical_features, issues_train, issues_test):
+def escale_numerical_features(numerical_features, issues_train, issues_test):
     """
     Standarizes numerical information.
     :param issues_train: Train issue information.
@@ -103,10 +109,8 @@ def escale_features(numerical_features, issues_train, issues_test):
 
     for feature in numerical_features:
         scaler = StandardScaler()
-        issues_train_std[feature] = scaler.fit_transform(issues_train[feature])
-
-        print "feature ", feature
-        issues_test_std[feature] = scaler.transform(issues_test[feature])
+        issues_train_std[feature] = scaler.fit_transform(issues_train[feature].reshape(-1, 1))
+        issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
 
     return issues_train_std, issues_test_std
 
@@ -241,6 +245,7 @@ def feature_importance_with_forest(issues_train, priority_train, issues_test, pr
 def prepare_for_training(issues_dataframe, class_label, numerical_features, nominal_features):
     """
     Filters only the relevant features, encodes de class label and the encodes nominal features.
+
     :param issues_dataframe: Original dataframe.
     :param class_label: Class label.
     :param numerical_features: Numerical features.
@@ -249,7 +254,7 @@ def prepare_for_training(issues_dataframe, class_label, numerical_features, nomi
     """
     issue_dataframe = encode_class_label(issues_dataframe, class_label)
 
-    class_label = 'Severe'
+    # class_label = 'Severe'
     # class_label = 'Simplified ' + class_label
 
     issue_dataframe = issue_dataframe[numerical_features + nominal_features + [class_label]]
@@ -292,7 +297,7 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
     issues_dataframe, encoded_priorities = prepare_for_training(temp_dataframe, class_label, numerical_features,
                                                                 nominal_features)
 
-    training_std, original_std = escale_features(numerical_features, training_dataframe, issues_dataframe)
+    training_std, original_std = escale_numerical_features(numerical_features, training_dataframe, issues_dataframe)
 
     classifier.fit(training_std, training_labels)
     print "Training score: ", classifier.score(training_std, training_labels)
@@ -327,19 +332,12 @@ if __name__ == "__main__":
 
     issues_dataframe = filter_issues_dataframe(original_dataframe)
 
-    class_label = 'Encoded Priority'
-    numerical_features = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Git Resolution Time',
-                          'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
-                          'Number of Reopens']
-
-    nominal_features = ['Git Repository']
-
     figure, axes = plt.subplots(1, 1)
     issues_dataframe['Git Repository'].value_counts(normalize=True).plot(kind='bar', ax=axes)
     # plt.show()
 
-    issues_dataframe, encoded_priorities = prepare_for_training(issues_dataframe, class_label, numerical_features,
-                                                                nominal_features)
+    issues_dataframe, encoded_priorities = prepare_for_training(issues_dataframe, CLASS_LABEL, NUMERICAL_FEATURES,
+                                                                NOMINAL_FEATURES)
 
     issues_train, issues_test, priority_train, priority_test = train_test_split(issues_dataframe,
                                                                                 encoded_priorities,
@@ -347,12 +345,14 @@ if __name__ == "__main__":
 
     print len(issues_train.index), " issues on the train set."
 
-    issues_train_std, issues_test_std = escale_features(numerical_features, issues_train, issues_test)
+    issues_train_std, issues_test_std = escale_numerical_features(NUMERICAL_FEATURES, issues_train, issues_test)
 
     logit_classifier = select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
     knn_classifier = sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
-    forest_classifier = feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
 
-    train_and_predict(knn_classifier, original_dataframe, issues_dataframe, encoded_priorities, class_label,
-                      numerical_features,
-                      nominal_features)
+    # forest_classifier = feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
+    rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
+
+    train_and_predict(rforest_classifier, original_dataframe, issues_dataframe, encoded_priorities, CLASS_LABEL,
+                      NUMERICAL_FEATURES,
+                      NOMINAL_FEATURES)
