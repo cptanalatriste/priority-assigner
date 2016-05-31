@@ -119,7 +119,7 @@ def evaluate_performance(prefix, classifier, issues_train, priority_train, issue
     """
     Calculates performance metrics for a classifier.
     :param prefix: A prefix, for identifying the classifier.
-    :param classifier: The classifier.
+    :param classifier: The classifier, previously fitted.
     :param issues_train: Train features.
     :param priority_train: Train class.
     :param issues_test_std: Test features.
