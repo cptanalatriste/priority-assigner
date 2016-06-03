@@ -27,7 +27,7 @@ NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Gi
 NOMINAL_FEATURES = ['Git Repository']
 
 
-def filter_issues_dataframe(original_dataframe):
+def filter_issues_dataframe(original_dataframe, repository=None):
     """
     Returns a dataframe of issues that: Are resolved, have a commit in Git, were not resolved by the reported and had
     a priority change not made by the reporter.
@@ -44,6 +44,10 @@ def filter_issues_dataframe(original_dataframe):
 
     issue_dataframe = issue_dataframe[issue_dataframe['Priority Changer'] != issue_dataframe['Reported By']]
     print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
+
+    if repository:
+        issue_dataframe = issue_dataframe[issue_dataframe['Git Repository'] == repository]
+        print len(issue_dataframe.index), " issues corresponding to repository ", repository
 
     return issue_dataframe
 
@@ -115,7 +119,8 @@ def escale_numerical_features(numerical_features, issues_train, issues_test):
     return issues_train_std, issues_test_std
 
 
-def evaluate_performance(prefix, classifier, issues_train, priority_train, issues_test_std, priority_test):
+def evaluate_performance(prefix, classifier, issues_train, priority_train,
+                         issues_test_std, priority_test):
     """
     Calculates performance metrics for a classifier.
     :param prefix: A prefix, for identifying the classifier.
@@ -147,10 +152,11 @@ def select_features_l1(issues_train_std, priority_train, issues_test_std, priori
     :return: The Logistic Regression classifier.
     """
     logistic_regression = LogisticRegression(penalty='l1', C=0.1)
+
     logistic_regression.fit(issues_train_std, priority_train)
 
-    # print 'Intercept: ', logistic_regression.intercept_
-    # print 'Coefficient: ', logistic_regression.coef_
+    print 'Intercept: ', logistic_regression.intercept_
+    print 'Coefficient: ', logistic_regression.coef_
 
     evaluate_performance("LOGIT-L1", logistic_regression, issues_train_std, priority_train, issues_test_std,
                          priority_test)
@@ -168,6 +174,7 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
     :return: None.
     """
 
+    print "Applying sequential feature selection..."
     # TODO: What is the optimal number of neighbors?
     knn_classifier = KNeighborsClassifier(n_neighbors=5)
     feature_selector = fselect.SBS(knn_classifier, k_features=1)
@@ -182,14 +189,15 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
             optimal_subset = list(subset)
 
     num_features = [len(k) for k in feature_selector.subsets_]
+
+    figure, axes = plt.subplots(1, 1)
     plt.plot(num_features, feature_selector.scores_, marker='o')
     plt.ylim([0.4, 1.1])
     plt.ylabel('Accuracy')
     plt.xlabel('Number of features')
     plt.grid()
 
-    # Uncomment to display plot.
-    # plt.show()
+    plt.show()
 
     knn_classifier.fit(issues_train_std, priority_train)
     evaluate_performance("KNN-5NEIGH", knn_classifier, issues_train_std, priority_train, issues_test_std, priority_test)
@@ -222,12 +230,13 @@ def feature_importance_with_forest(issues_train, priority_train, issues_test, pr
     for column_index in range(len(issues_train.columns)):
         print column_index + 1, ") ", issues_train.columns[column_index], " ", importances[indices[column_index]]
 
+    figure, axes = plt.subplots(1, 1)
     plt.title('Feature importance')
     plt.bar(range(len(issues_train.columns)), importances[indices], color='lightblue', align='center')
     plt.xticks(range(len(issues_train.columns)), issues_train.columns, rotation=90)
     plt.xlim([-1, len(issues_train.columns)])
     plt.tight_layout()
-    # plt.show()
+    plt.show()
 
     evaluate_performance("FOREST", rforest_classifier, issues_train, priority_train, issues_test, priority_test)
 
@@ -260,7 +269,7 @@ def prepare_for_training(issues_dataframe, class_label, numerical_features, nomi
     issue_dataframe = issue_dataframe[numerical_features + nominal_features + [class_label]]
     issue_dataframe = encode_nominal_features(issue_dataframe, nominal_features)
 
-    encoded_priorities = issue_dataframe[class_label]
+    encoded_priorities = issue_dataframe[class_label].reset_index()
     issue_dataframe = issue_dataframe.drop([class_label], axis=1)
 
     print "Number of features: ", len(issue_dataframe.columns)
@@ -324,21 +333,29 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
             inflated_issues.index), ' ratio: ', len(inflated_issues.index) / float(len(severe_issues.index))
 
 
-if __name__ == "__main__":
+def main():
     original_dataframe = pd.read_csv(CSV_FILE)
 
     print "Loaded ", len(
         original_dataframe.index), " resolved issues with Git Commits, solved by a third-party from ", CSV_FILE
 
-    issues_dataframe = filter_issues_dataframe(original_dataframe)
+    issues_dataframe = filter_issues_dataframe(original_dataframe, repository="cloudstack")
 
+    # Plotting projects
     figure, axes = plt.subplots(1, 1)
     issues_dataframe['Git Repository'].value_counts(normalize=True).plot(kind='bar', ax=axes)
-    # plt.show()
+    plt.show()
 
     issues_dataframe, encoded_priorities = prepare_for_training(issues_dataframe, CLASS_LABEL, NUMERICAL_FEATURES,
                                                                 NOMINAL_FEATURES)
 
+    # Plotting priorities
+
+    figure, axes = plt.subplots(1, 1)
+    encoded_priorities[CLASS_LABEL].value_counts(normalize=True, sort=True).plot(kind='bar', ax=axes)
+    plt.show()
+
+    encoded_priorities = encoded_priorities[CLASS_LABEL]
     issues_train, issues_test, priority_train, priority_test = train_test_split(issues_dataframe,
                                                                                 encoded_priorities,
                                                                                 test_size=0.2, random_state=0)
@@ -350,9 +367,13 @@ if __name__ == "__main__":
     logit_classifier = select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
     knn_classifier = sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
 
-    # forest_classifier = feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
+    forest_classifier = feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
     rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
 
     train_and_predict(rforest_classifier, original_dataframe, issues_dataframe, encoded_priorities, CLASS_LABEL,
                       NUMERICAL_FEATURES,
                       NOMINAL_FEATURES)
+
+
+if __name__ == "__main__":
+    main()

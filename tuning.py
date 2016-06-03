@@ -1,5 +1,5 @@
 """
-This modules deals with parameter tunning for the Priority Assigner
+This modules deals with parameter tuning for the Priority Assigner
 """
 
 import pandas as pd
@@ -10,6 +10,7 @@ from sklearn import learning_curve
 
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import StratifiedKFold
+from sklearn.cross_validation import cross_val_score
 
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
@@ -20,6 +21,8 @@ from sklearn.learning_curve import validation_curve
 
 from sklearn.grid_search import GridSearchCV
 from sklearn.svm import SVC
+
+from sklearn.tree import DecisionTreeClassifier
 
 import assigner
 
@@ -137,26 +140,33 @@ def validation_curve_analysis(estimator=None, param_name=None, param_range=None,
     plt.show()
 
 
-def parameter_tuning(estimator=None, param_grid=None, issues_train=None, priority_train=None):
+def parameter_tuning(grid_search=None, issues_train=None, priority_train=None):
     """
     Applies grid search to find optimal parameter configuration.
-    :param estimator: Estimator
-    :param param_grid: Parameter grid.
-    :param issues_train: Train issues.
+    :param grid_search: Grid search to run.
     :param priority_train: Train priorities.
     :return: Estimator with optimal configuration.
     """
-    grid_search = GridSearchCV(estimator=estimator,
-                               param_grid=param_grid,
-                               scoring='accuracy',
-                               cv=10,
-                               n_jobs=-1)
+    print "Starting grid search ..."
     grid_search = grid_search.fit(issues_train, priority_train)
     print 'grid_search.best_score_: ', grid_search.best_score_
     print 'grid_search.best_params_: ', grid_search.best_params_
 
     best_estimator = grid_search.best_estimator_
     return best_estimator
+
+
+def nested_cross_validation(grid_search=None, issues_train=None, priority_train=None):
+    """
+    Applies nested cross-validation, for an specific grid search configurastion.
+    :param grid_search: Grid Search configuration
+    :param issues_train: Train issues.
+    :param priority_train: Train priorities.
+    :return: Best estimator configuration.
+    """
+    print "Starting nested cross-validation ..."
+    scores = cross_val_score(grid_search, issues_train, priority_train, scoring='accuracy', cv=5)
+    print 'CV accuracy. Mean: ', np.mean(scores), " Std: ", np.std(scores)
 
 
 def main():
@@ -179,13 +189,12 @@ def main():
 
     lregression_l2 = Pipeline([('clf', LogisticRegression(penalty='l2',
                                                           random_state=0))])
-    # learning_curve_analysis(lregression_l2, issues_train_std, priority_train)
+    learning_curve_analysis(lregression_l2, issues_train_std, priority_train)
 
     lregression_l2.fit(issues_train_std, priority_train)
     assigner.evaluate_performance("LOGIT-L2", lregression_l2, issues_train_std, priority_train, issues_test_std,
                                   priority_test)
 
-    print "Starting grid search ..."
     param_range = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
     validation_curve_analysis(lregression_l2, 'clf__C', param_range, issues_train_std, priority_train)
 
@@ -196,17 +205,40 @@ def main():
                        'clf__gamma': param_range,
                        'clf__kernel': ['rbf']}]
 
-    best_estimator = parameter_tuning(svm_pipeline, svm_param_grid, issues_train_std, priority_train)
+    grid_search = GridSearchCV(estimator=svm_pipeline,
+                               param_grid=svm_param_grid,
+                               scoring='accuracy',
+                               cv=10,
+                               n_jobs=-1)
+
+    best_estimator = parameter_tuning(grid_search, issues_train_std, priority_train)
     best_estimator.fit(issues_train_std, priority_train)
 
     assigner.evaluate_performance("SVM-AFTERGRID", best_estimator, issues_train_std, priority_train, issues_test_std,
                                   priority_test)
 
-    # grid_search = GridSearchCV(estimator=svm_pipeline,
-    #                            param_grid=svm_param_grid,
-    #                            scoring='accuracy',
-    #                            cv=10,
-    #                            n_jobs=-1)
+    grid_search = GridSearchCV(estimator=svm_pipeline,
+                               param_grid=svm_param_grid,
+                               scoring='accuracy',
+                               cv=10,
+                               n_jobs=-1)
+    print "SVM"
+    nested_cross_validation(grid_search, issues_train_std, priority_train)
+    best_svm = parameter_tuning(grid_search, issues_train_std, priority_train)
+    assigner.evaluate_performance("SVM-BEST", issues_train_std, priority_train, issues_test, priority_test)
+
+    tree_classifier = DecisionTreeClassifier(random_state=0)
+    tree_param_grid = [{'max_depth': [1, 2, 3, 4, 5, 6, 7, None]}]
+    grid_search = GridSearchCV(estimator=tree_classifier,
+                               param_grid=tree_param_grid,
+                               scoring='accuracy',
+                               cv=5)
+
+    print "Decission Tree"
+    nested_cross_validation(grid_search, issues_train, priority_train)
+    best_tree = parameter_tuning(grid_search, issues_train, priority_train)
+    assigner.evaluate_performance("TREE-BEST", best_tree, issues_train, priority_train, issues_test,
+                                  priority_test)
 
 
 if __name__ == "__main__":
