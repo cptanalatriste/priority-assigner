@@ -39,14 +39,18 @@ def filter_issues_dataframe(original_dataframe, repository=None):
 
     print "Total columns in dataframe: ", len(original_dataframe.columns)
 
-    issue_dataframe = original_dataframe.dropna(subset=['Priority Changer', 'GitHub Distance in Releases'])
+    priority_changer_columnn = 'Priority Changer'
+    issue_dataframe = original_dataframe.dropna(subset=[priority_changer_columnn, 'GitHub Distance in Releases'])
     print len(issue_dataframe.index), " issues had a change in the reported priority and release information in Git."
 
-    issue_dataframe = issue_dataframe[issue_dataframe['Priority Changer'] != issue_dataframe['Reported By']]
+    issue_dataframe = issue_dataframe[issue_dataframe[priority_changer_columnn] != issue_dataframe['Reported By']]
     print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
 
     if repository:
-        issue_dataframe = issue_dataframe[issue_dataframe['Git Repository'] == repository]
+        repository_column = 'Git Repository'
+        issue_dataframe = issue_dataframe[issue_dataframe[repository_column] == repository]
+        issue_dataframe = issue_dataframe.drop(repository_column, 1)
+
         print len(issue_dataframe.index), " issues corresponding to repository ", repository
 
     return issue_dataframe
@@ -113,6 +117,7 @@ def escale_numerical_features(numerical_features, issues_train, issues_test):
 
     for feature in numerical_features:
         scaler = StandardScaler()
+
         issues_train_std[feature] = scaler.fit_transform(issues_train[feature].reshape(-1, 1))
         issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
 
@@ -129,17 +134,22 @@ def evaluate_performance(prefix, classifier, issues_train, priority_train,
     :param priority_train: Train class.
     :param issues_test_std: Test features.
     :param priority_test: Test class.
-    :return: None.
+    :return: Train accuracy and Test accuracy.
     """
-    print prefix, ': Training accuracy ', classifier.score(issues_train, priority_train)
+
+    train_accuracy = classifier.score(issues_train, priority_train)
+    print prefix, ': Training accuracy ', train_accuracy
     train_predictions = classifier.predict(issues_train)
     print prefix, " :TRAIN DATA SET"
     print classification_report(y_true=priority_train, y_pred=train_predictions)
 
-    print prefix, ': Test accuracy ', classifier.score(issues_test_std, priority_test)
+    test_accuracy = classifier.score(issues_test_std, priority_test)
+    print prefix, ': Test accuracy ', test_accuracy
     test_predictions = classifier.predict(issues_test_std)
     print prefix, " :TEST DATA SET"
     print classification_report(y_true=priority_test, y_pred=test_predictions)
+
+    return train_accuracy, test_accuracy
 
 
 def select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test):
@@ -274,7 +284,7 @@ def prepare_for_training(issues_dataframe, class_label, numerical_features, nomi
 
     print "Number of features: ", len(issue_dataframe.columns)
 
-    return issue_dataframe, encoded_priorities
+    return issue_dataframe, encoded_priorities[CLASS_LABEL]
 
 
 def train_and_predict(classifier, original_dataframe, training_dataframe, training_labels, class_label,
@@ -333,13 +343,21 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
             inflated_issues.index), ' ratio: ', len(inflated_issues.index) / float(len(severe_issues.index))
 
 
-def main():
+def load_original_dataframe():
+    """
+    Loads the issues CSV without additional filtering.
+    :return: CSV data as a data frame.
+    """
     original_dataframe = pd.read_csv(CSV_FILE)
 
     print "Loaded ", len(
         original_dataframe.index), " resolved issues with Git Commits, solved by a third-party from ", CSV_FILE
+    return original_dataframe
 
-    issues_dataframe = filter_issues_dataframe(original_dataframe, repository="cloudstack")
+
+def main():
+    original_dataframe = load_original_dataframe()
+    issues_dataframe = filter_issues_dataframe(original_dataframe)
 
     # Plotting projects
     figure, axes = plt.subplots(1, 1)
@@ -352,10 +370,9 @@ def main():
     # Plotting priorities
 
     figure, axes = plt.subplots(1, 1)
-    encoded_priorities[CLASS_LABEL].value_counts(normalize=True, sort=True).plot(kind='bar', ax=axes)
+    encoded_priorities.value_counts(normalize=True, sort=True).plot(kind='bar', ax=axes)
     plt.show()
 
-    encoded_priorities = encoded_priorities[CLASS_LABEL]
     issues_train, issues_test, priority_train, priority_test = train_test_split(issues_dataframe,
                                                                                 encoded_priorities,
                                                                                 test_size=0.2, random_state=0)

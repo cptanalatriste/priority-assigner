@@ -83,7 +83,7 @@ def cross_validation(classifier, issues_train_std, priority_train):
 
 def learning_curve_analysis(estimator=None, issues_train=None, priority_train=None):
     """
-    Generates the learning curve for a especific estimator.
+    Generates the learning curve for a specific estimator.
     :param estimator: Estimator.
     :param issues_train: Standarized train set.
     :param priority_train: Priorities for train set.
@@ -117,6 +117,15 @@ def learning_curve_analysis(estimator=None, issues_train=None, priority_train=No
 
 def validation_curve_analysis(estimator=None, param_name=None, param_range=None, issues_train=None,
                               priority_train=None):
+    """
+    Generates the validation curve for a specific estimator.
+    :param estimator: Estimator.
+    :param param_name: Name of the parameter.
+    :param param_range: Range of the parameters to consider.
+    :param issues_train: Train issues.
+    :param priority_train: Train priorities.
+    :return: None.
+    """
     train_scores, test_scores = validation_curve(estimator=estimator, X=issues_train, y=priority_train,
                                                  param_name=param_name, param_range=param_range, cv=10)
     train_mean = np.mean(train_scores, axis=1)
@@ -144,29 +153,35 @@ def parameter_tuning(grid_search=None, issues_train=None, priority_train=None):
     """
     Applies grid search to find optimal parameter configuration.
     :param grid_search: Grid search to run.
+    :param issues_train: Train issues.
     :param priority_train: Train priorities.
     :return: Estimator with optimal configuration.
     """
     print "Starting grid search ..."
     grid_search = grid_search.fit(issues_train, priority_train)
+    best_params = grid_search.best_params_
+
     print 'grid_search.best_score_: ', grid_search.best_score_
-    print 'grid_search.best_params_: ', grid_search.best_params_
+    print 'grid_search.best_params_: ', best_params
 
     best_estimator = grid_search.best_estimator_
-    return best_estimator
+    return best_estimator, best_params
 
 
 def nested_cross_validation(grid_search=None, issues_train=None, priority_train=None):
     """
-    Applies nested cross-validation, for an specific grid search configurastion.
+    Applies nested cross-validation, for an specific grid search configuration.
     :param grid_search: Grid Search configuration
     :param issues_train: Train issues.
     :param priority_train: Train priorities.
-    :return: Best estimator configuration.
+    :return: Mean as Std of the Cross Validation process.
     """
     print "Starting nested cross-validation ..."
     scores = cross_val_score(grid_search, issues_train, priority_train, scoring='accuracy', cv=5)
+    mean_cv, std_cv = np.mean(scores), np.std(scores)
     print 'CV accuracy. Mean: ', np.mean(scores), " Std: ", np.std(scores)
+
+    return mean_cv, std_cv
 
 
 def main():
@@ -174,7 +189,7 @@ def main():
     Initial execution point.
     :return: None
     """
-    original_dataframe = pd.read_csv(assigner.CSV_FILE)
+    original_dataframe = assigner.load_original_dataframe()
     filtered_dataframe = assigner.filter_issues_dataframe(original_dataframe)
 
     issues, priorities = assigner.prepare_for_training(filtered_dataframe, assigner.CLASS_LABEL,
@@ -211,7 +226,7 @@ def main():
                                cv=10,
                                n_jobs=-1)
 
-    best_estimator = parameter_tuning(grid_search, issues_train_std, priority_train)
+    best_estimator, _ = parameter_tuning(grid_search, issues_train_std, priority_train)
     best_estimator.fit(issues_train_std, priority_train)
 
     assigner.evaluate_performance("SVM-AFTERGRID", best_estimator, issues_train_std, priority_train, issues_test_std,
@@ -224,8 +239,8 @@ def main():
                                n_jobs=-1)
     print "SVM"
     nested_cross_validation(grid_search, issues_train_std, priority_train)
-    best_svm = parameter_tuning(grid_search, issues_train_std, priority_train)
-    assigner.evaluate_performance("SVM-BEST", issues_train_std, priority_train, issues_test, priority_test)
+    best_svm, _ = parameter_tuning(grid_search, issues_train_std, priority_train)
+    assigner.evaluate_performance("SVM-BEST", issues_train_std, priority_train, issues_test_std, priority_test)
 
     tree_classifier = DecisionTreeClassifier(random_state=0)
     tree_param_grid = [{'max_depth': [1, 2, 3, 4, 5, 6, 7, None]}]
@@ -236,7 +251,7 @@ def main():
 
     print "Decission Tree"
     nested_cross_validation(grid_search, issues_train, priority_train)
-    best_tree = parameter_tuning(grid_search, issues_train, priority_train)
+    best_tree, _ = parameter_tuning(grid_search, issues_train, priority_train)
     assigner.evaluate_performance("TREE-BEST", best_tree, issues_train, priority_train, issues_test,
                                   priority_test)
 
