@@ -1,7 +1,6 @@
 """
 This module performs experiments to select a classification algorithm.
 """
-import sys
 import traceback
 
 import assigner
@@ -69,13 +68,15 @@ def main():
                     optimal_estimator, best_params = tuning.parameter_tuning(grid_search, issues_train_std,
                                                                              priority_train)
 
-                    train_accuracy, test_accuracy = assigner.evaluate_performance(algorithm, optimal_estimator,
-                                                                                  issues_train_std,
-                                                                                  priority_train, issues_test_std,
-                                                                                  priority_test)
+                    train_accuracy, test_accuracy, test_f1score, f1score_class = assigner.evaluate_performance(
+                        algorithm, optimal_estimator,
+                        issues_train_std,
+                        priority_train, issues_test_std,
+                        priority_test)
 
-                    print ' *** algorithm: ', algorithm, " mean_cv: ", mean_cv, " std_cv: ", std_cv, " best_params: ", \
-                        best_params, " train_accuracy: ", train_accuracy, " test_accuracy: ", test_accuracy
+                    print ' *** algorithm: ', algorithm, " repository: ", repository, " mean_cv: ", mean_cv, " std_cv: ", std_cv, " best_params: ", \
+                        best_params, " train_accuracy: ", train_accuracy, " test_accuracy: ", test_accuracy, " test_f1score: ", \
+                        test_f1score, " f1score_class: ", f1score_class
                 except:
                     print "!!!!!!  An error ocurred while applying ", algorithm, " to repository ", repository
                     trace = traceback.print_exc()
