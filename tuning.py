@@ -2,7 +2,6 @@
 This modules deals with parameter tuning for the Priority Assigner
 """
 
-import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -168,7 +167,7 @@ def parameter_tuning(grid_search=None, issues_train=None, priority_train=None):
     return best_estimator, best_params
 
 
-def nested_cross_validation(grid_search=None, issues_train=None, priority_train=None):
+def nested_cross_validation(grid_search=None, issues_train=None, priority_train=None, scoring='accuracy'):
     """
     Applies nested cross-validation, for an specific grid search configuration.
     :param grid_search: Grid Search configuration
@@ -177,7 +176,7 @@ def nested_cross_validation(grid_search=None, issues_train=None, priority_train=
     :return: Mean as Std of the Cross Validation process.
     """
     print "Starting nested cross-validation ..."
-    scores = cross_val_score(grid_search, issues_train, priority_train, scoring='accuracy', cv=5)
+    scores = cross_val_score(grid_search, issues_train, priority_train, scoring=scoring, cv=5)
     mean_cv, std_cv = np.mean(scores), np.std(scores)
     print 'CV accuracy. Mean: ', np.mean(scores), " Std: ", np.std(scores)
 
