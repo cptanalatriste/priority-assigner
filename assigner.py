@@ -7,6 +7,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
+from collections import defaultdict
+
 from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
@@ -14,6 +16,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectFromModel
 from sklearn.metrics import f1_score
+from sklearn.metrics import precision_recall_fscore_support
 
 from sklearn.metrics import classification_report
 
@@ -152,11 +155,17 @@ def evaluate_performance(prefix, classifier, issues_train, priority_train,
 
     labels = np.sort(np.unique(np.concatenate((priority_test.values, test_predictions))))
     test_f1_score = f1_score(y_true=priority_test, y_pred=test_predictions, average='weighted')
-    scores = f1_score(y_true=priority_test, y_pred=test_predictions, average=None)
+    f1_scores = f1_score(y_true=priority_test, y_pred=test_predictions, average=None)
 
-    f1_per_class = {label: score for label, score in zip(labels, scores)}
+    f1_per_class = {label: score for label, score in zip(labels, f1_scores)}
 
-    return train_accuracy, test_accuracy, test_f1_score, f1_per_class
+    all_scores = precision_recall_fscore_support(y_true=priority_test, y_pred=test_predictions, average=None)
+
+    support_index = 3
+    support_per_class = {label: support for label, support in zip(labels, all_scores[support_index])}
+
+    return train_accuracy, test_accuracy, test_f1_score, defaultdict(lambda: 0, f1_per_class), \
+           defaultdict(lambda: 0, support_per_class)
 
 
 def select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test):

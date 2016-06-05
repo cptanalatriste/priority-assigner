@@ -1,6 +1,8 @@
 """
 This module performs experiments to select a classification algorithm.
 """
+
+import pandas as pd
 import traceback
 
 import assigner
@@ -40,6 +42,8 @@ def main():
     original_dataframe = assigner.load_original_dataframe()
     repositories = original_dataframe['Git Repository'].unique()
 
+    results = []
+
     for repository in repositories:
         print "Working on repository ", repository, " ..."
 
@@ -63,28 +67,36 @@ def main():
                                                                                    issues_test)
 
             for algorithm, grid_search in get_algorithms():
-                try:
-                    mean_cv, std_cv = tuning.nested_cross_validation(grid_search, issues_train_std, priority_train)
-                    optimal_estimator, best_params = tuning.parameter_tuning(grid_search, issues_train_std,
-                                                                             priority_train)
+                mean_cv, std_cv = tuning.nested_cross_validation(grid_search, issues_train_std, priority_train)
+                optimal_estimator, best_params = tuning.parameter_tuning(grid_search, issues_train_std,
+                                                                         priority_train)
 
-                    train_accuracy, test_accuracy, test_f1score, f1score_class = assigner.evaluate_performance(
-                        algorithm, optimal_estimator,
-                        issues_train_std,
-                        priority_train, issues_test_std,
-                        priority_test)
+                train_accuracy, test_accuracy, test_f1score, f1score_class, support_per_class = assigner.evaluate_performance(
+                    algorithm, optimal_estimator,
+                    issues_train_std,
+                    priority_train, issues_test_std,
+                    priority_test)
 
-                    print ' *** algorithm: ', algorithm, " repository: ", repository, " mean_cv: ", mean_cv, " std_cv: ", std_cv, " best_params: ", \
-                        best_params, " train_accuracy: ", train_accuracy, " test_accuracy: ", test_accuracy, " test_f1score: ", \
-                        test_f1score, " f1score_class: ", f1score_class
-                except:
-                    print "!!!!!!  An error ocurred while applying ", algorithm, " to repository ", repository
-                    trace = traceback.print_exc()
-                    print trace
-
-
+                results.append((algorithm, repository, mean_cv, std_cv, best_params, train_accuracy, test_accuracy,
+                                test_f1score, f1score_class[1], f1score_class[2], f1score_class[3],
+                                f1score_class[4], f1score_class[5], support_per_class[1], support_per_class[2],
+                                support_per_class[3],
+                                support_per_class[4], support_per_class[5]))
         else:
             print "Issues corresponding to repository ", repository, " are not enough for analysis."
+
+    file_name = "experiment_results.csv"
+
+    print "Writing results to ", file_name
+    results_dataframe = pd.DataFrame(data=results,
+                                     columns=["Algorithm", "Repository", "CV Mean", " CV STD", "Best configuration",
+                                              "Train accuracy", "Test accuracy", " Test f1-score",
+                                              "Test f1-score Pri 1", "Test f1-score Pri 2", "Test f1-score Pri 3",
+                                              "Test f1-score Pri 4", "Test f1-score Pri 5", "Test Support Pri 1",
+                                              "Test Support Pri 2", "Test Support Pri 3",
+                                              "Test Support Pri 4", "Test Support Pri 5"])
+
+    results_dataframe.to_csv(file_name, index=False)
 
 
 if __name__ == "__main__":
