@@ -18,7 +18,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 
-SCORING = 'f1_macro'
+SCORING = 'f1_weighted'
 
 
 def get_algorithms():
@@ -101,7 +101,7 @@ def analyse_performance(grid_search=None, algorithm=None, issues_train_std=None,
     return None
 
 
-def split_train_test(repository, issues, priorities):
+def split_train_test(repository="", issues=None, priorities=None):
     """
     Performs the train-test split using stratified sampling, and also normalized the numerical features.
 
@@ -111,6 +111,8 @@ def split_train_test(repository, issues, priorities):
     :return: Normalized train issues, train priorities, normalized test issues, test priorities.
     """
     try:
+        print "Priorities distribution:\n ", priorities.value_counts()
+
         issues_train, issues_test, priority_train, priority_test = train_test_split(issues, priorities,
                                                                                     test_size=0.2,
                                                                                     stratify=priorities,
@@ -169,6 +171,8 @@ def main():
         project_dataframe = assigner.filter_issues_dataframe(original_dataframe, repository=repository)
 
         # Threslhold taking into account considering the scikit-learn cheat sheet
+        # http://scikit-learn.org/stable/tutorial/machine_learning_map/
+
         minimum_threshold = 50
         issues_found = len(project_dataframe.index)
         print issues_found, " issues found on repository ", repository
@@ -176,7 +180,6 @@ def main():
         if issues_found > minimum_threshold:
 
             # The Git Repository feauture is not needed since it is filtered.
-            # http://scikit-learn.org/stable/tutorial/machine_learning_map/
             nominal_features = []
             issues, priorities = assigner.prepare_for_training(project_dataframe, assigner.CLASS_LABEL,
                                                                assigner.NUMERICAL_FEATURES, nominal_features)

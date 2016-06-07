@@ -31,10 +31,30 @@ NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Gi
 NOMINAL_FEATURES = ['Git Repository']
 
 
-def filter_issues_dataframe(original_dataframe, repository=None):
+def load_original_dataframe():
     """
-    Returns a dataframe of issues that: Are resolved, have a commit in Git, were not resolved by the reported and had
-    a priority change not made by the reporter.
+    Loads the issues CSV without additional filtering. Note that all this issues have at least one commit in Git,
+    have been in a valid resolved state and were reported and resolved by different persons.
+
+    Also, we will filter issues that don't have priority information.
+
+    :return: CSV data as a data frame.
+    """
+    original_dataframe = pd.read_csv(CSV_FILE)
+
+    print "Loaded ", len(
+        original_dataframe.index), " resolved issues with Git Commits, solved by a third-party from ", CSV_FILE
+
+    original_dataframe = original_dataframe.dropna(subset=['Priority'])
+    print len(original_dataframe.index), "after excluding empty priorities."
+
+    return original_dataframe
+
+
+def filter_issues_dataframe(original_dataframe, repository=None, priority_changer=True, git_metrics=True):
+    """
+    Returns a dataframe of issues that: Are resolved, have a commit in Git, were not resolved by
+    the reported and had a priority change not made by the reporter.
 
     Also, that does not have the distance in releases null.
 
@@ -44,11 +64,16 @@ def filter_issues_dataframe(original_dataframe, repository=None):
     print "Total columns in dataframe: ", len(original_dataframe.columns)
 
     priority_changer_columnn = 'Priority Changer'
-    issue_dataframe = original_dataframe.dropna(subset=[priority_changer_columnn, 'GitHub Distance in Releases'])
-    print len(issue_dataframe.index), " issues had a change in the reported priority and release information in Git."
+    issue_dataframe = original_dataframe
 
-    issue_dataframe = issue_dataframe[issue_dataframe[priority_changer_columnn] != issue_dataframe['Reported By']]
-    print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
+    if priority_changer:
+        issue_dataframe = original_dataframe.dropna(subset=[priority_changer_columnn])
+        issue_dataframe = issue_dataframe[issue_dataframe[priority_changer_columnn] != issue_dataframe['Reported By']]
+        print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
+
+    if git_metrics:
+        issue_dataframe = original_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
+        print len(issue_dataframe.index), "have release information in Git."
 
     if repository:
         repository_column = 'Git Repository'
@@ -122,6 +147,7 @@ def escale_numerical_features(numerical_features, issues_train, issues_test):
     for feature in numerical_features:
         scaler = StandardScaler()
 
+        print "feature ", feature
         issues_train_std[feature] = scaler.fit_transform(issues_train[feature].reshape(-1, 1))
         issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
 
@@ -357,18 +383,6 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
 
         print "repository: ", repository, " Reported Severe: ", len(severe_issues.index), " Severe inflated: ", len(
             inflated_issues.index), ' ratio: ', len(inflated_issues.index) / float(len(severe_issues.index))
-
-
-def load_original_dataframe():
-    """
-    Loads the issues CSV without additional filtering.
-    :return: CSV data as a data frame.
-    """
-    original_dataframe = pd.read_csv(CSV_FILE)
-
-    print "Loaded ", len(
-        original_dataframe.index), " resolved issues with Git Commits, solved by a third-party from ", CSV_FILE
-    return original_dataframe
 
 
 def main():
