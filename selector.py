@@ -132,14 +132,12 @@ def split_train_test(repository="", issues=None, priorities=None):
     return None
 
 
-def write_results(results):
+def write_results(file_name, results):
     """
     Writes the experiment results into a CSV file.
     :param results: List with tuples, each containing experiment execution.
     :return: None
     """
-
-    file_name = "experiment_results.csv"
 
     print "Writing results to ", file_name
     results_dataframe = pd.DataFrame(data=results,
@@ -152,6 +150,33 @@ def write_results(results):
                                               "Test Support Pri 4", "Test Support Pri 5", "Repository", "Total Issues"])
 
     results_dataframe.to_csv(file_name, index=False)
+
+
+def run_algorithm_analysis(issues_train_std=None, priority_train=None, issues_test_std=None, priority_test=None,
+                           repository=None, issues_found=None):
+    """
+    Executes the algorithm list against a train-test dataset.
+
+    :param issues_train_std: Issues for training.
+    :param priority_train: Priorities in the training set.
+    :param issues_test_std: Issues for testing.
+    :param priority_test: Priorities for the test set.
+    :param repository: Name of the repository.
+    :param issues_found: Issues contained in the repository.
+    :return: List of tuples with the information.
+    """
+    results = []
+    for algorithm, grid_search in get_algorithms():
+
+        print "Executing ", algorithm, " over ", repository, " dataset ..."
+
+        result = analyse_performance(grid_search, algorithm, issues_train_std, priority_train,
+                                     issues_test_std,
+                                     priority_test)
+        if result:
+            results.append(result + (repository, issues_found))
+
+    return results
 
 
 def main():
@@ -187,18 +212,16 @@ def main():
             train_test = split_train_test(repository, issues, priorities)
             if train_test:
                 issues_train_std, priority_train, issues_test_std, priority_test = train_test
+                result = run_algorithm_analysis(issues_train_std, priority_train, issues_test_std, priority_test,
+                                                repository, issues_found)
 
-                for algorithm, grid_search in get_algorithms():
+                if result:
+                    results.extend(result)
 
-                    result = analyse_performance(grid_search, algorithm, issues_train_std, priority_train,
-                                                 issues_test_std,
-                                                 priority_test)
-                    if result:
-                        results.append(result + (repository, issues_found))
         else:
             print "Issues corresponding to repository ", repository, " are not enough for analysis."
 
-    write_results(results)
+    write_results("project_experiment_results.csv", results)
 
 
 if __name__ == "__main__":

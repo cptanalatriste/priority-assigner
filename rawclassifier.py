@@ -27,6 +27,11 @@ def main():
     print "issues_train_std.head() ", issues_train_std.head()
     print "priority_train.head() ", priority_train.head()
 
+    result = selector.run_algorithm_analysis(issues_train_std, priority_train, issues_test_std, priority_test, "ALL",
+                                             len(original_dataframe.index))
+
+    selector.write_results("all_experiment_results.csv", result)
+
 
 if __name__ == "__main__":
     main()
