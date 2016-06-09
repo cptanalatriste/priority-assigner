@@ -21,7 +21,8 @@ import fselect
 import preprocessing
 
 CLASS_LABEL = 'Encoded Priority'
-NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines', 'Git Resolution Time',
+NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines',
+                      'Git Resolution Time',
                       'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
                       'Number of Reopens']
 NOMINAL_FEATURES = ['Git Repository']
@@ -208,7 +209,8 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
                                                                           numerical_features,
                                                                           nominal_features)
 
-    training_std, original_std = escale_numerical_features(numerical_features, training_dataframe, issues_dataframe)
+    training_std, original_std = preprocessing.escale_numerical_features(numerical_features, training_dataframe,
+                                                                         issues_dataframe)
 
     classifier.fit(training_std, training_labels)
     print "Training score: ", classifier.score(training_std, training_labels)

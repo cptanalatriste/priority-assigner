@@ -133,23 +133,29 @@ def encode_nominal_features(issue_dataframe, nominal_features):
         return issue_dataframe
 
 
-def escale_numerical_features(numerical_features, issues_train, issues_test):
+def escale_numerical_features(numerical_features, issues_train, issues_test=None):
     """
     Standarizes numerical information.
-    :param issues_train: Train issue information.
-    :param issues_test: Test issue information
+    :param issues_train: Train issues for the scaler.
+    :param issues_test: Issue set to also be scaled.
     :param numerical_features: Features to scale
 
     :return: Train and test sets standarized.
     """
 
     issues_train_std = issues_train.copy()
-    issues_test_std = issues_test.copy()
+
+    if issues_test is not None:
+        issues_test_std = issues_test.copy()
+    else:
+        issues_test_std = None
 
     for feature in numerical_features:
         scaler = StandardScaler()
 
         issues_train_std[feature] = scaler.fit_transform(issues_train[feature].reshape(-1, 1))
-        issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
+
+        if issues_test is not None:
+            issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
 
     return issues_train_std, issues_test_std

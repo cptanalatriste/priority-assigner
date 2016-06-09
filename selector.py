@@ -32,7 +32,13 @@ def get_algorithms():
     param_range = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
 
     return [
-
+        ("RandomForest", GridSearchCV(estimator=RandomForestClassifier(random_state=0,
+                                                                       n_jobs=-1),
+                                      param_grid=[{'n_estimators': np.arange(1, 100, 10),
+                                                   'max_depth': np.arange(1, 100, 20)}],
+                                      scoring=SCORING,
+                                      cv=cv,
+                                      n_jobs=n_jobs)),
         ("LogisticRegression", GridSearchCV(estimator=LogisticRegression(),
                                             param_grid=[{'penalty': ['l1', 'l2'],
                                                          'C': param_range}],
@@ -45,13 +51,7 @@ def get_algorithms():
                                     scoring=SCORING,
                                     cv=cv,
                                     n_jobs=n_jobs)),
-        ("RandomForest", GridSearchCV(estimator=RandomForestClassifier(random_state=0,
-                                                                       n_jobs=-1),
-                                      param_grid=[{'n_estimators': np.arange(1, 100, 10),
-                                                   'max_depth': np.arange(1, 100, 20)}],
-                                      scoring=SCORING,
-                                      cv=cv,
-                                      n_jobs=n_jobs)),
+
         ("SVM", GridSearchCV(estimator=SVC(),
                              param_grid=[{'C': param_range,
                                           'kernel': ['linear']},
