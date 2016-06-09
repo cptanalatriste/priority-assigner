@@ -67,12 +67,12 @@ def filter_issues_dataframe(original_dataframe, repository=None, priority_change
     issue_dataframe = original_dataframe
 
     if priority_changer:
-        issue_dataframe = original_dataframe.dropna(subset=[priority_changer_columnn])
+        issue_dataframe = issue_dataframe.dropna(subset=[priority_changer_columnn])
         issue_dataframe = issue_dataframe[issue_dataframe[priority_changer_columnn] != issue_dataframe['Reported By']]
         print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
 
     if git_metrics:
-        issue_dataframe = original_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
+        issue_dataframe = issue_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
         print len(issue_dataframe.index), "have release information in Git."
 
     if repository:
@@ -147,15 +147,14 @@ def escale_numerical_features(numerical_features, issues_train, issues_test):
     for feature in numerical_features:
         scaler = StandardScaler()
 
-        print "feature ", feature
         issues_train_std[feature] = scaler.fit_transform(issues_train[feature].reshape(-1, 1))
         issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
 
     return issues_train_std, issues_test_std
 
 
-def evaluate_performance(prefix, classifier, issues_train, priority_train,
-                         issues_test_std, priority_test):
+def evaluate_performance(prefix=None, classifier=None, issues_train=None, priority_train=None,
+                         issues_test_std=None, priority_test=None):
     """
     Calculates performance metrics for a classifier.
     :param prefix: A prefix, for identifying the classifier.
@@ -167,11 +166,13 @@ def evaluate_performance(prefix, classifier, issues_train, priority_train,
     :return: Train accuracy , Test accuracy, Test weighted-f1 and F1 score per class.
     """
 
-    train_accuracy = classifier.score(issues_train, priority_train)
-    print prefix, ': Training accuracy ', train_accuracy
-    train_predictions = classifier.predict(issues_train)
-    print prefix, " :TRAIN DATA SET"
-    print classification_report(y_true=priority_train, y_pred=train_predictions)
+    train_accuracy = None
+    if issues_train is not None and priority_train is not None:
+        train_accuracy = classifier.score(issues_train, priority_train)
+        print prefix, ': Training accuracy ', train_accuracy
+        train_predictions = classifier.predict(issues_train)
+        print prefix, " :TRAIN DATA SET"
+        print classification_report(y_true=priority_train, y_pred=train_predictions)
 
     test_accuracy = classifier.score(issues_test_std, priority_test)
     print prefix, ': Test accuracy ', test_accuracy

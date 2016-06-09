@@ -31,42 +31,48 @@ def get_algorithms():
 
     param_range = [0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 1000.0]
 
-    return [("LogisticRegression", GridSearchCV(estimator=LogisticRegression(),
-                                                param_grid=[{'penalty': ['l1', 'l2'],
-                                                             'C': param_range}],
-                                                scoring=SCORING,
-                                                cv=cv,
-                                                n_jobs=n_jobs)),
-            ("KNeighbors", GridSearchCV(estimator=KNeighborsClassifier(),
-                                        param_grid=[{'n_neighbors': np.arange(1, 20, 1),
-                                                     'weights': ['uniform', 'distance']}],
-                                        scoring=SCORING,
-                                        cv=cv,
-                                        n_jobs=n_jobs)),
-            ("SVM", GridSearchCV(estimator=SVC(),
-                                 param_grid=[{'C': param_range,
-                                              'kernel': ['linear']},
-                                             {'C': param_range,
-                                              'gamma': param_range,
-                                              'kernel': ['rbf']}],
-                                 scoring=SCORING,
-                                 cv=cv,
-                                 n_jobs=n_jobs)),
-            ("RandomForest", GridSearchCV(estimator=RandomForestClassifier(random_state=0,
-                                                                           n_jobs=-1),
-                                          param_grid=[{'n_estimators': np.arange(1, 100, 10)}],
-                                          scoring=SCORING,
-                                          cv=cv,
-                                          n_jobs=n_jobs))]
+    return [
+
+        ("LogisticRegression", GridSearchCV(estimator=LogisticRegression(),
+                                            param_grid=[{'penalty': ['l1', 'l2'],
+                                                         'C': param_range}],
+                                            scoring=SCORING,
+                                            cv=cv,
+                                            n_jobs=n_jobs)),
+        ("KNeighbors", GridSearchCV(estimator=KNeighborsClassifier(),
+                                    param_grid=[{'n_neighbors': np.arange(1, 20, 1),
+                                                 'weights': ['uniform', 'distance']}],
+                                    scoring=SCORING,
+                                    cv=cv,
+                                    n_jobs=n_jobs)),
+        ("RandomForest", GridSearchCV(estimator=RandomForestClassifier(random_state=0,
+                                                                       n_jobs=-1),
+                                      param_grid=[{'n_estimators': np.arange(1, 100, 10)}],
+                                      scoring=SCORING,
+                                      cv=cv,
+                                      n_jobs=n_jobs)),
+        ("SVM", GridSearchCV(estimator=SVC(),
+                             param_grid=[{'C': param_range,
+                                          'kernel': ['linear']},
+                                         # {'C': param_range,
+                                         #  'gamma': param_range,
+                                         #  'kernel': ['rbf']}
+                                         ],
+                             scoring=SCORING,
+                             cv=cv,
+                             n_jobs=n_jobs))
+    ]
 
 
-def analyse_performance(grid_search=None, algorithm=None, issues_train_std=None, priority_train=None,
+def analyse_performance(optimal_estimator=None, best_params=None, grid_search=None, algorithm=None,
+                        issues_train_std=None, priority_train=None,
                         issues_test_std=None,
                         priority_test=None):
     """
     Returns performance metrics for a classification algorithm, after tuning its parameters through grid search.
 
-    :param grid_search: Grid Search with possible configurations.
+    :param optimal_estimator: Estimator to evaluate
+    :param best_params : Estimator configuration.
     :param algorithm: Algorithm description.
     :param issues_train_std: Issues in train.
     :param priority_train: Priorities in train.
@@ -77,8 +83,6 @@ def analyse_performance(grid_search=None, algorithm=None, issues_train_std=None,
     try:
         mean_cv, std_cv = tuning.nested_cross_validation(grid_search, issues_train_std, priority_train,
                                                          SCORING)
-        optimal_estimator, best_params = tuning.parameter_tuning(grid_search, issues_train_std,
-                                                                 priority_train)
 
         train_accuracy, test_accuracy, test_f1score, f1score_class, support_per_class = assigner.evaluate_performance(
             algorithm, optimal_estimator,
@@ -170,7 +174,10 @@ def run_algorithm_analysis(issues_train_std=None, priority_train=None, issues_te
 
         print "Executing ", algorithm, " over ", repository, " dataset ..."
 
-        result = analyse_performance(grid_search, algorithm, issues_train_std, priority_train,
+        optimal_estimator, best_params = tuning.parameter_tuning(grid_search, issues_train_std,
+                                                                 priority_train)
+
+        result = analyse_performance(optimal_estimator, best_params, algorithm, issues_train_std, priority_train,
                                      issues_test_std,
                                      priority_test)
         if result:

@@ -55,7 +55,6 @@ def cross_validation(classifier, issues_train_std, priority_train):
     :param priority_train: Labels for the train-set
     :return: None.
     """
-    print issues_train_std.head()
 
     k_fold = StratifiedKFold(y=priority_train, n_folds=10, random_state=1)
     scores = []
