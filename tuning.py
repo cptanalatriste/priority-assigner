@@ -155,7 +155,7 @@ def parameter_tuning(grid_search=None, issues_train=None, priority_train=None):
     :param priority_train: Train priorities.
     :return: Estimator with optimal configuration.
     """
-    print "Starting grid search ..."
+    print "Starting grid search. Scoring: ", grid_search.scoring
     grid_search = grid_search.fit(issues_train, priority_train)
     best_params = grid_search.best_params_
 
@@ -174,10 +174,10 @@ def nested_cross_validation(grid_search=None, issues_train=None, priority_train=
     :param priority_train: Train priorities.
     :return: Mean as Std of the Cross Validation process.
     """
-    print "Starting nested cross-validation ..."
+    print "Starting nested cross-validation. Scoring: ", scoring
     scores = cross_val_score(grid_search, issues_train, priority_train, scoring=scoring, cv=5)
     mean_cv, std_cv = np.mean(scores), np.std(scores)
-    print 'CV accuracy. Mean: ', np.mean(scores), " Std: ", np.std(scores)
+    print 'CV Scores. Mean: ', np.mean(scores), " Std: ", np.std(scores)
 
     return mean_cv, std_cv
 

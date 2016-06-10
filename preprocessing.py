@@ -1,10 +1,20 @@
 """
 This modules handles the CSV preprocessing before executing the ML code.
 """
+import traceback
+
 import pandas as pd
+from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 CSV_FILE = "C:\Users\Carlos G. Gavidia\git\github-data-miner\Release_Counter_.csv"
+
+ENCODED_CLASS_LABEL = 'Encoded Priority'
+NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines',
+                      'Git Resolution Time',
+                      'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
+                      'Number of Reopens']
+NOMINAL_FEATURES = ['Git Repository']
 
 
 def load_original_dataframe():
@@ -61,34 +71,36 @@ def filter_issues_dataframe(original_dataframe, repository=None, priority_change
     return issue_dataframe
 
 
-def encode_class_label(issue_dataframe, class_label):
+def encode_class_label(issue_dataframe, encoded_class_label):
     """
     Replaces the priority as String for a numerical value. It also adds the Severe column (Boolean, true if it is a Blocker or Critical issue.)
     :param issue_dataframe: Original dataframe
-    :param class_label: Column containing encoded Priority Information
+    :param encoded_class_label: Column containing encoded Priority Information
     :return: New dataframe
     """
+    original_label = 'Priority'
     priority_mapping = {'Blocker': 1,
                         'Critical': 2,
                         'Major': 3,
                         'Minor': 4,
                         'Trivial': 5}
 
-    original_label = 'Priority'
-    issue_dataframe[class_label] = issue_dataframe[original_label].map(priority_mapping)
-    issue_dataframe['Severe'] = issue_dataframe[class_label] <= 2
+    issue_dataframe[encoded_class_label] = issue_dataframe[original_label].map(priority_mapping)
+    issue_dataframe['Severe'] = issue_dataframe[encoded_class_label] <= 2
+    issue_dataframe['Blocker'] = issue_dataframe[encoded_class_label] == 1
+    issue_dataframe['Trivial'] = issue_dataframe[encoded_class_label] == 3
 
     simplified_mapping = {'Blocker': 1,
                           'Critical': 1,
                           'Major': 2,
                           'Minor': 3,
                           'Trivial': 3}
-    issue_dataframe['Simplified ' + class_label] = issue_dataframe[original_label].map(simplified_mapping)
+    issue_dataframe['Simplified ' + encoded_class_label] = issue_dataframe[original_label].map(simplified_mapping)
 
     return issue_dataframe
 
 
-def encode_and_split(issues_dataframe, class_label, numerical_features, nominal_features):
+def encode_and_split(issues_dataframe=None, class_label=None, numerical_features=None, nominal_features=[]):
     """
     Filters only the relevant features, encodes de class label and the encodes nominal features.
 
@@ -98,7 +110,7 @@ def encode_and_split(issues_dataframe, class_label, numerical_features, nominal_
     :param nominal_features: Nominal features.
     :return: Dataframe with features, series with labels.
     """
-    issue_dataframe = encode_class_label(issues_dataframe, class_label)
+    issue_dataframe = encode_class_label(issues_dataframe, ENCODED_CLASS_LABEL)
 
     # class_label = 'Severe'
     # class_label = 'Simplified ' + class_label
@@ -159,3 +171,35 @@ def escale_numerical_features(numerical_features, issues_train, issues_test=None
             issues_test_std[feature] = scaler.transform(issues_test[feature].reshape(-1, 1))
 
     return issues_train_std, issues_test_std
+
+
+def train_test_encode(repository="", issues=None, labels=None, num_features=NUMERICAL_FEATURES):
+    """
+    Performs the train-test split using stratified sampling, and also normalized the numerical features.
+
+    :param repository: Repository name.
+    :param issues: Issues
+    :param labels: Priorities.
+    :param num_features: Numerical features for encoding.
+    :return: rain Issues, Normalized train issues, train priorities, test priorities, normalized test issues, test priorities.
+    """
+    try:
+        print "Priorities distribution:\n ", labels.value_counts()
+
+        issues_train, issues_test, priority_train, priority_test = train_test_split(issues, labels,
+                                                                                    test_size=0.2,
+                                                                                    stratify=labels,
+                                                                                    random_state=0)
+
+        issues_train_std, issues_test_std = escale_numerical_features(num_features,
+                                                                      issues_train,
+                                                                      issues_test)
+
+        return issues_train, issues_train_std, priority_train, issues_test, issues_test_std, priority_test
+
+    except ValueError as e:
+        print "!!!!!!  An error ocurred while splitting ", repository
+        trace = traceback.print_exc()
+        print trace
+
+    return None

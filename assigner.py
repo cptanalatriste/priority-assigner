@@ -20,12 +20,7 @@ from sklearn.metrics import classification_report
 import fselect
 import preprocessing
 
-CLASS_LABEL = 'Encoded Priority'
-NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines',
-                      'Git Resolution Time',
-                      'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
-                      'Number of Reopens']
-NOMINAL_FEATURES = ['Git Repository']
+
 
 
 def evaluate_performance(prefix=None, classifier=None, issues_train=None, priority_train=None,
@@ -139,19 +134,16 @@ def sequential_feature_selection(issues_train_std, priority_train, issues_test_s
     return knn_classifier
 
 
-def feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test):
+def feature_importance_with_forest(rforest_classifier, issues_train, priority_train, issues_test, priority_test):
     """
     Assess feature importance using a Random Forest.
+    :param rforest_classifier: An already fitted classifier.
     :param issues_train: Train features.
     :param priority_train: Train classes.
     :param issues_test: Test features.
     :param priority_test: Test classes.
     :return: None
     """
-    print "Building Random Forest Classifier ..."
-    rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
-    rforest_classifier.fit(issues_train, priority_train)
-
     importances = rforest_classifier.feature_importances_
     indices = np.argsort(importances)[::-1]
 
@@ -246,8 +238,9 @@ def main():
     issues_dataframe['Git Repository'].value_counts(normalize=True).plot(kind='bar', ax=axes)
     plt.show()
 
-    issues_dataframe, encoded_priorities = prepare_for_training(issues_dataframe, CLASS_LABEL, NUMERICAL_FEATURES,
-                                                                NOMINAL_FEATURES)
+    issues_dataframe, encoded_priorities = preprocessing.encode_and_split(issues_dataframe, CLASS_LABEL,
+                                                                          NUMERICAL_FEATURES,
+                                                                          NOMINAL_FEATURES)
 
     # Plotting priorities
 
@@ -267,7 +260,11 @@ def main():
     logit_classifier = select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
     knn_classifier = sequential_feature_selection(issues_train_std, priority_train, issues_test_std, priority_test)
 
+    print "Building Random Forest Classifier ..."
+    rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
+    rforest_classifier.fit(issues_train, priority_train)
     forest_classifier = feature_importance_with_forest(issues_train, priority_train, issues_test, priority_test)
+
     rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
 
     train_and_predict(rforest_classifier, original_dataframe, issues_dataframe, encoded_priorities, CLASS_LABEL,
