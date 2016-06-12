@@ -12,26 +12,25 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectFromModel
+
 from sklearn.metrics import f1_score
 from sklearn.metrics import precision_recall_fscore_support
-
 from sklearn.metrics import classification_report
+from sklearn.metrics import cohen_kappa_score
 
 import fselect
 import preprocessing
 
 
-
-
 def evaluate_performance(prefix=None, classifier=None, issues_train=None, priority_train=None,
-                         issues_test_std=None, priority_test=None):
+                         issues_test=None, priority_test=None):
     """
     Calculates performance metrics for a classifier.
     :param prefix: A prefix, for identifying the classifier.
     :param classifier: The classifier, previously fitted.
     :param issues_train: Train features.
     :param priority_train: Train class.
-    :param issues_test_std: Test features.
+    :param issues_test: Test features.
     :param priority_test: Test class.
     :return: Train accuracy , Test accuracy, Test weighted-f1 and F1 score per class.
     """
@@ -41,12 +40,18 @@ def evaluate_performance(prefix=None, classifier=None, issues_train=None, priori
         train_accuracy = classifier.score(issues_train, priority_train)
         print prefix, ': Training accuracy ', train_accuracy
         train_predictions = classifier.predict(issues_train)
+
         print prefix, " :TRAIN DATA SET"
         print classification_report(y_true=priority_train, y_pred=train_predictions)
 
-    test_accuracy = classifier.score(issues_test_std, priority_test)
+    test_accuracy = classifier.score(issues_test, priority_test)
     print prefix, ': Test accuracy ', test_accuracy
-    test_predictions = classifier.predict(issues_test_std)
+
+    test_predictions = classifier.predict(issues_test)
+
+    test_kappa = cohen_kappa_score(priority_test, test_predictions)
+    print prefix, ": Test Kappa: ", test_kappa
+
     print prefix, " :TEST DATA SET"
     print classification_report(y_true=priority_test, y_pred=test_predictions)
 
@@ -238,9 +243,9 @@ def main():
     issues_dataframe['Git Repository'].value_counts(normalize=True).plot(kind='bar', ax=axes)
     plt.show()
 
-    issues_dataframe, encoded_priorities = preprocessing.encode_and_split(issues_dataframe, CLASS_LABEL,
-                                                                          NUMERICAL_FEATURES,
-                                                                          NOMINAL_FEATURES)
+    issues_dataframe, encoded_priorities = preprocessing.encode_and_split(issues_dataframe, preprocessing.CLASS_LABEL,
+                                                                          preprocessing.NUMERICAL_FEATURES,
+                                                                          preprocessing.NOMINAL_FEATURES)
 
     # Plotting priorities
 
@@ -254,7 +259,8 @@ def main():
 
     print len(issues_train.index), " issues on the train set."
 
-    issues_train_std, issues_test_std = preprocessing.escale_numerical_features(NUMERICAL_FEATURES, issues_train,
+    issues_train_std, issues_test_std = preprocessing.escale_numerical_features(preprocessing.NUMERICAL_FEATURES,
+                                                                                issues_train,
                                                                                 issues_test)
 
     logit_classifier = select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test)
@@ -267,9 +273,10 @@ def main():
 
     rforest_classifier = RandomForestClassifier(n_estimators=10000, random_state=0, n_jobs=-1)
 
-    train_and_predict(rforest_classifier, original_dataframe, issues_dataframe, encoded_priorities, CLASS_LABEL,
-                      NUMERICAL_FEATURES,
-                      NOMINAL_FEATURES)
+    train_and_predict(rforest_classifier, original_dataframe, issues_dataframe, encoded_priorities,
+                      preprocessing.CLASS_LABEL,
+                      preprocessing.NUMERICAL_FEATURES,
+                      preprocessing.NOMINAL_FEATURES)
 
 
 if __name__ == "__main__":

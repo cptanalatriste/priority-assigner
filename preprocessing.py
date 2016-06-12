@@ -86,9 +86,13 @@ def encode_class_label(issue_dataframe, encoded_class_label):
                         'Trivial': 5}
 
     issue_dataframe[encoded_class_label] = issue_dataframe[original_label].map(priority_mapping)
+
     issue_dataframe['Severe'] = issue_dataframe[encoded_class_label] <= 2
+    issue_dataframe['Non-Severe'] = issue_dataframe[encoded_class_label] > 3
+
     issue_dataframe['Blocker'] = issue_dataframe[encoded_class_label] == 1
-    issue_dataframe['Trivial'] = issue_dataframe[encoded_class_label] == 3
+    issue_dataframe['Critical'] = issue_dataframe[encoded_class_label] == 2
+    issue_dataframe['Trivial'] = issue_dataframe[encoded_class_label] == 5
 
     simplified_mapping = {'Blocker': 1,
                           'Critical': 1,
@@ -184,7 +188,7 @@ def train_test_encode(repository="", issues=None, labels=None, num_features=NUME
     :return: rain Issues, Normalized train issues, train priorities, test priorities, normalized test issues, test priorities.
     """
     try:
-        print "Priorities distribution:\n ", labels.value_counts()
+        print "Label distribution:\n ", labels.value_counts()
 
         issues_train, issues_test, priority_train, priority_test = train_test_split(issues, labels,
                                                                                     test_size=0.2,

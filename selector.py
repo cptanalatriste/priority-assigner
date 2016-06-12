@@ -18,7 +18,10 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 
-SCORING = 'f1_macro'
+from sklearn.metrics import make_scorer, cohen_kappa_score
+
+# SCORING = 'f1_macro'
+SCORING = make_scorer(cohen_kappa_score)
 
 
 def get_algorithms():
@@ -73,7 +76,7 @@ def run_algorithm_analysis(issues_train=None, issues_train_std=None, labels_trai
                            issues_test_std=None, labels_test=None,
                            repository=None, issues_found=None):
     """
-    Executes the algorithm list against a train-test dataset.
+    Executes and tunes the algorithm list against a train-test dataset.
 
     :param issues_train_std: Issues for training.
     :param labels_train: Priorities in the training set.
