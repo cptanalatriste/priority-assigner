@@ -133,7 +133,7 @@ def analyse_performance(optimal_estimator=None, best_params=None, grid_search=No
         mean_cv, std_cv = tuning.nested_cross_validation(grid_search, train_dataset, labels_train,
                                                          SCORING)
 
-        train_accuracy, test_accuracy, test_f1score, f1score_class, support_per_class = assigner.evaluate_performance(
+        train_accuracy, test_accuracy, test_kappa, test_f1score, precission_class, recall_per_class = assigner.evaluate_performance(
             algorithm, optimal_estimator,
             train_dataset,
             labels_train, test_dataset,
@@ -141,11 +141,9 @@ def analyse_performance(optimal_estimator=None, best_params=None, grid_search=No
 
         return (
             (algorithm, mean_cv, std_cv, best_params, train_accuracy,
-             test_accuracy,
-             test_f1score, f1score_class[1], f1score_class[2], f1score_class[3],
-             f1score_class[4], f1score_class[5], support_per_class[1], support_per_class[2],
-             support_per_class[3],
-             support_per_class[4], support_per_class[5]))
+             test_accuracy, test_kappa,
+             test_f1score, precission_class[True], precission_class[False],
+             recall_per_class[True], recall_per_class[False]))
     except ValueError as e:
         print "!!!!!!  An error ocurred while applying ", algorithm
         trace = traceback.print_exc()
@@ -163,13 +161,11 @@ def write_results(file_name, results):
 
     print "Writing results to ", file_name
     results_dataframe = pd.DataFrame(data=results,
-                                     columns=["Algorithm", "CV Mean", " CV STD",
+                                     columns=["Algorithm", "CV-Score Mean", " CV-Score STD",
                                               "Best configuration",
-                                              "Train accuracy", "Test accuracy", " Test f1-score",
-                                              "Test f1-score Pri 1", "Test f1-score Pri 2", "Test f1-score Pri 3",
-                                              "Test f1-score Pri 4", "Test f1-score Pri 5", "Test Support Pri 1",
-                                              "Test Support Pri 2", "Test Support Pri 3",
-                                              "Test Support Pri 4", "Test Support Pri 5", "Repository",
+                                              "Train accuracy", "Test accuracy", "Test Kappa", " Test f1-score",
+                                              "Test Precission True", "Test Precission False", "Test Recall True",
+                                              "Test Recall False", "Repository",
                                               "Total Issues"])
 
     results_dataframe.to_csv(file_name, index=False)

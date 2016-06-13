@@ -14,6 +14,8 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.feature_selection import SelectFromModel
 
 from sklearn.metrics import f1_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
 from sklearn.metrics import precision_recall_fscore_support
 from sklearn.metrics import classification_report
 from sklearn.metrics import cohen_kappa_score
@@ -57,17 +59,18 @@ def evaluate_performance(prefix=None, classifier=None, issues_train=None, priori
 
     labels = np.sort(np.unique(np.concatenate((priority_test.values, test_predictions))))
     test_f1_score = f1_score(y_true=priority_test, y_pred=test_predictions, average='weighted')
-    f1_scores = f1_score(y_true=priority_test, y_pred=test_predictions, average=None)
 
-    f1_per_class = {label: score for label, score in zip(labels, f1_scores)}
-
+    precission_scores = precision_score(y_true=priority_test, y_pred=test_predictions, average=None)
     all_scores = precision_recall_fscore_support(y_true=priority_test, y_pred=test_predictions, average=None)
 
-    support_index = 3
-    support_per_class = {label: support for label, support in zip(labels, all_scores[support_index])}
+    precission_per_class = {label: score for label, score in zip(labels, precission_scores)}
 
-    return train_accuracy, test_accuracy, test_f1_score, defaultdict(lambda: 0, f1_per_class), \
-           defaultdict(lambda: 0, support_per_class)
+    recall_index = 1
+    recall_per_class = {label: support for label, support in zip(labels, all_scores[recall_index])}
+
+    return train_accuracy, test_accuracy, test_kappa, test_f1_score,\
+           defaultdict(lambda: 0, precission_per_class), \
+           defaultdict(lambda: 0, recall_per_class)
 
 
 def select_features_l1(issues_train_std, priority_train, issues_test_std, priority_test):

@@ -2,10 +2,17 @@
 This modules handles the CSV preprocessing before executing the ML code.
 """
 import traceback
+import re
 
 import pandas as pd
+
 from sklearn.cross_validation import train_test_split
 from sklearn.preprocessing import StandardScaler
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+from nltk.corpus import stopwords
+from nltk.stem.porter import PorterStemmer
 
 CSV_FILE = "C:\Users\Carlos G. Gavidia\git\github-data-miner\Release_Counter_.csv"
 
@@ -15,6 +22,7 @@ NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines',
                       'Comments in JIRA', 'Total Deletions', 'Total Insertions', 'Avg Files', 'Change Log Size',
                       'Number of Reopens']
 NOMINAL_FEATURES = ['Git Repository']
+TEXT_FEATURE = 'Summary'
 
 
 def load_original_dataframe():
@@ -104,7 +112,25 @@ def encode_class_label(issue_dataframe, encoded_class_label):
     return issue_dataframe
 
 
-def encode_and_split(issues_dataframe=None, class_label=None, numerical_features=None, nominal_features=[]):
+def tokenizer(text):
+    stemmer = PorterStemmer()
+    return [stemmer.stem(word) for word in text.split()]
+
+
+def preprocess(text):
+    """
+    Removes HTML tags, non-word characters and appends emoticons at the end.
+    :param text: Raw text.
+    :return: Pre-processed text.
+    """
+    text = re.sub("<[^>]*>", "", text)
+    emoticons = re.findall("(?::|;|=)(?:-)?(?:\)|\(|D|P)", text)
+    text = re.sub('[\W]+', ' ', text.lower()) + ''.join(emoticons).replace('-', '')
+    return text
+
+
+def encode_and_split(issues_dataframe=None, class_label=None, numerical_features=None, nominal_features=[],
+                     text_feature=None):
     """
     Filters only the relevant features, encodes de class label and the encodes nominal features.
 
@@ -119,7 +145,12 @@ def encode_and_split(issues_dataframe=None, class_label=None, numerical_features
     # class_label = 'Severe'
     # class_label = 'Simplified ' + class_label
 
-    issue_dataframe = issue_dataframe[numerical_features + nominal_features + [class_label]]
+
+    if text_feature:
+        issue_dataframe = issue_dataframe[numerical_features + nominal_features + [text_feature] + [class_label]]
+    else:
+        issue_dataframe = issue_dataframe[numerical_features + nominal_features + [class_label]]
+
     issue_dataframe = encode_nominal_features(issue_dataframe, nominal_features)
 
     encoded_priorities = issue_dataframe[class_label].reset_index()
@@ -147,6 +178,49 @@ def encode_nominal_features(issue_dataframe, nominal_features):
 
     else:
         return issue_dataframe
+
+
+def preprocess_textual_data(text_feature, issues_train, issues_test=None):
+    """
+    For the textual field, it removes stop words, tokenize the content considering stemming and
+    calculates tf-idf.
+
+    :param text_feature: Name of the text feature.
+    :param issues_train: Issues considered for training.
+    :param issues_test: Issues on the test set.
+    :return: Train set and test set.
+    """
+
+    if text_feature:
+        print "Starting text preprocessing. Text Feature: ", text_feature
+
+        stop_words = stopwords.words("english")
+        vectorizer = TfidfVectorizer(strip_accents=None, lowercase=True, preprocessor=None,
+                                     stop_words=stop_words, tokenizer=tokenizer, ngram_range=(1, 1))
+
+        train_frequencies = vectorizer.fit_transform(issues_train[text_feature])
+        feature_names = vectorizer.get_feature_names()
+        train_dataframe = pd.DataFrame(train_frequencies.toarray(), columns=feature_names,
+                                       index=issues_train.index)
+        train_dataframe.reset_index()
+
+        train = issues_train.drop(text_feature, axis=1)
+        train.reset_index()
+        train = pd.concat([train, train_dataframe], axis=1)
+
+        test = issues_test
+        if issues_test is not None:
+            test_frequencies = vectorizer.transform(issues_test[text_feature])
+            test_dataframe = pd.DataFrame(test_frequencies.toarray(), columns=feature_names,
+                                          index=issues_test.index)
+
+            test = issues_test.drop(text_feature, axis=1)
+            test = pd.concat([test, test_dataframe], axis=1)
+
+        print "Text preprocessing finished."
+        return train, test
+
+    return issues_train, issues_test
 
 
 def escale_numerical_features(numerical_features, issues_train, issues_test=None):
@@ -177,7 +251,8 @@ def escale_numerical_features(numerical_features, issues_train, issues_test=None
     return issues_train_std, issues_test_std
 
 
-def train_test_encode(repository="", issues=None, labels=None, num_features=NUMERICAL_FEATURES):
+def train_test_encode(repository="", issues=None, labels=None, num_features=NUMERICAL_FEATURES,
+                      text_feature=TEXT_FEATURE):
     """
     Performs the train-test split using stratified sampling, and also normalized the numerical features.
 
@@ -195,9 +270,15 @@ def train_test_encode(repository="", issues=None, labels=None, num_features=NUME
                                                                                     stratify=labels,
                                                                                     random_state=0)
 
+        issues_train, issues_test = preprocess_textual_data(text_feature,
+                                                            issues_train,
+                                                            issues_test)
+
         issues_train_std, issues_test_std = escale_numerical_features(num_features,
                                                                       issues_train,
                                                                       issues_test)
+
+        print "Shape of the training dataset: ", issues_train_std.shape
 
         return issues_train, issues_train_std, priority_train, issues_test, issues_test_std, priority_test
 
