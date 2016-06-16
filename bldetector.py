@@ -9,6 +9,7 @@ import preprocessing
 import selector
 
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
 
 
 def analyse_forest_features(issues_train=None, priority_train=None, issues_test=None, priority_test=None):
@@ -34,30 +35,38 @@ def execute_analysis(dataframe, repository, class_label):
     :return: None
     """
     try:
+        text_feature = preprocessing.TEXT_FEATURE
+        text_feature = "Description"
+        text_feature = None
+
+        dataframe = dataframe.dropna(subset=[text_feature])
+        print len(dataframe.index), " reports after removing ", text_feature, " text empty values..."
+
         issues, labels = preprocessing.encode_and_split(issues_dataframe=dataframe,
                                                         class_label=class_label,
                                                         numerical_features=preprocessing.NUMERICAL_FEATURES,
                                                         nominal_features=[],
-                                                        # text_feature=preprocessing.TEXT_FEATURE)
-                                                        text_feature=None)
+                                                        text_feature=text_feature)
 
         issues_train, issues_train_std, labels_train, issues_test, issues_test_std, labels_test = preprocessing.train_test_encode(
             issues=issues,
             labels=labels,
-            text_feature=None,
+            text_feature=text_feature,
             repository=repository)
 
         # Only for testing
         # analyse_forest_features(issues_train, labels_train, issues_test, labels_test)
         # return
 
+        issues_found = len(dataframe.index)
         results = selector.run_algorithm_analysis(repository=repository,
                                                   issues_train=issues_train,
                                                   issues_train_std=issues_train_std,
                                                   labels_train=labels_train,
                                                   issues_test=issues_test,
                                                   issues_test_std=issues_test_std,
-                                                  labels_test=labels_test)
+                                                  labels_test=labels_test,
+                                                  issues_found=issues_found)
 
         return results
 
@@ -69,20 +78,26 @@ def execute_analysis(dataframe, repository, class_label):
         return []
 
 
-def main():
+def algorithm_analysis():
+    """
+    Executes the analysis for finding the optimal class label and algorithm configuration.
+    :return: None.
+    """
     consolidated_results = []
 
     try:
         minimum_records = 50
         class_labels = [
-            'Severe'  # , 'Blocker', 'Non-Severe', 'Trivial', 'Critical'
+            'Severe'
+            # 'Blocker'
+            # , 'Non-Severe', 'Trivial', 'Critical'
         ]
 
         original_dataframe = preprocessing.load_original_dataframe()
 
-        valid_dataframe = preprocessing.filter_issues_dataframe(original_dataframe)
         repositories = []
-        repositories.append(("VALID", valid_dataframe))
+        # valid_dataframe = preprocessing.filter_issues_dataframe(original_dataframe)
+        # repositories.append(("VALID", valid_dataframe))
 
         for repo_name in selector.get_all_repositories(original_dataframe):
             project_dataframe = preprocessing.filter_issues_dataframe(original_dataframe,
@@ -103,6 +118,43 @@ def main():
     finally:
         selector.write_results("Binary_Classification.csv", consolidated_results)
         winsound.Beep(2500, 1000)
+
+
+def predict_priority():
+    """
+    Trains a classifier and runs it on a dataset.
+    :return:
+    """
+    # This values are product of the experiments
+    best_class_label = "Severe"
+
+    best_estimators = 51
+    best_depth = 21
+    classifier = RandomForestClassifier(n_estimators=best_estimators, max_depth=best_depth, random_state=0,
+                                        n_jobs=-1)
+
+    # classifier = SVC(kernel='linear', C=1.0, class_weight='balanced')
+
+    target_dataframe = preprocessing.load_original_dataframe()
+    training_dataframe = preprocessing.filter_issues_dataframe(target_dataframe)
+
+    issues_training, labels_traning = preprocessing.encode_and_split(issues_dataframe=training_dataframe,
+                                                                     class_label=best_class_label,
+                                                                     numerical_features=preprocessing.NUMERICAL_FEATURES,
+                                                                     nominal_features=[],
+                                                                     text_feature=None)
+
+    assigner.train_and_predict(classifier, target_dataframe, issues_training, labels_traning, best_class_label,
+                               preprocessing.NUMERICAL_FEATURES, [])
+
+
+def main():
+    """
+    Initial execution point.
+    :return: None.
+    """
+
+    algorithm_analysis()
 
 
 if __name__ == "__main__":

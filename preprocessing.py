@@ -16,6 +16,8 @@ from nltk.stem.porter import PorterStemmer
 
 CSV_FILE = "C:\Users\Carlos G. Gavidia\git\github-data-miner\Release_Counter_.csv"
 
+GIT_METRICS = ['GitHub Distance in Releases', 'Git Resolution Time']
+
 ENCODED_CLASS_LABEL = 'Encoded Priority'
 NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines',
                       'Git Resolution Time',
@@ -23,6 +25,11 @@ NUMERICAL_FEATURES = ['Commits', 'GitHub Distance in Releases', 'Avg Lines',
                       'Number of Reopens']
 NOMINAL_FEATURES = ['Git Repository']
 TEXT_FEATURE = 'Summary'
+PRIORITY_MAP = {'Blocker': 1,
+                'Critical': 2,
+                'Major': 3,
+                'Minor': 4,
+                'Trivial': 5}
 
 
 def load_original_dataframe():
@@ -66,7 +73,7 @@ def filter_issues_dataframe(original_dataframe, repository=None, priority_change
         print len(issue_dataframe.index), " issues had a priority corrected by a third-party."
 
     if git_metrics:
-        issue_dataframe = issue_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
+        issue_dataframe = issue_dataframe.dropna(subset=GIT_METRICS)
         print len(issue_dataframe.index), "have release information in Git."
 
     if repository:
@@ -87,13 +94,8 @@ def encode_class_label(issue_dataframe, encoded_class_label):
     :return: New dataframe
     """
     original_label = 'Priority'
-    priority_mapping = {'Blocker': 1,
-                        'Critical': 2,
-                        'Major': 3,
-                        'Minor': 4,
-                        'Trivial': 5}
 
-    issue_dataframe[encoded_class_label] = issue_dataframe[original_label].map(priority_mapping)
+    issue_dataframe[encoded_class_label] = issue_dataframe[original_label].map(PRIORITY_MAP)
 
     issue_dataframe['Severe'] = issue_dataframe[encoded_class_label] <= 2
     issue_dataframe['Non-Severe'] = issue_dataframe[encoded_class_label] > 3
@@ -193,6 +195,7 @@ def preprocess_textual_data(text_feature, issues_train, issues_test=None):
 
     if text_feature:
         print "Starting text preprocessing. Text Feature: ", text_feature
+        print "Null count: ", issues_train[text_feature].isnull().sum()
 
         stop_words = stopwords.words("english")
         vectorizer = TfidfVectorizer(strip_accents=None, lowercase=True, preprocessor=None,
@@ -260,7 +263,8 @@ def train_test_encode(repository="", issues=None, labels=None, num_features=NUME
     :param issues: Issues
     :param labels: Priorities.
     :param num_features: Numerical features for encoding.
-    :return: rain Issues, Normalized train issues, train priorities, test priorities, normalized test issues, test priorities.
+    :param Textual features for pre-processing.
+    :return: Train Issues, Normalized train issues, train priorities, test priorities, normalized test issues, test priorities.
     """
     try:
         print "Label distribution:\n ", labels.value_counts()

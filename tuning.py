@@ -156,6 +156,7 @@ def parameter_tuning(grid_search=None, issues_train=None, priority_train=None):
     :return: Estimator with optimal configuration.
     """
     print "Starting grid search. Scoring: ", grid_search.scoring
+
     grid_search = grid_search.fit(issues_train, priority_train)
     best_params = grid_search.best_params_
 

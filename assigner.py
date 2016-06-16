@@ -4,6 +4,7 @@ This module builds a predictor for the priority field for a bug report
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from collections import defaultdict
 
@@ -68,7 +69,7 @@ def evaluate_performance(prefix=None, classifier=None, issues_train=None, priori
     recall_index = 1
     recall_per_class = {label: support for label, support in zip(labels, all_scores[recall_index])}
 
-    return train_accuracy, test_accuracy, test_kappa, test_f1_score,\
+    return train_accuracy, test_accuracy, test_kappa, test_f1_score, \
            defaultdict(lambda: 0, precission_per_class), \
            defaultdict(lambda: 0, recall_per_class)
 
@@ -179,13 +180,13 @@ def feature_importance_with_forest(rforest_classifier, issues_train, priority_tr
                          priority_test)
 
 
-def train_and_predict(classifier, original_dataframe, training_dataframe, training_labels, class_label,
+def train_and_predict(classifier, target_dataframe, training_dataframe, training_labels, class_label,
                       numerical_features,
                       nominal_features):
     """
     Taking an issues dataframe, it performs predictions based on a classifier.It writes the resulting dataframe to a file.
     :param classifier: Classifier to use.
-    :param original_dataframe: Dataframe to predict.
+    :param target_dataframe: Dataframe to predict.
     :param training_dataframe: Dataframe containing training instances.
     :param training_labels: Labels for the training dataset.
     :param class_label: Class label.
@@ -195,46 +196,75 @@ def train_and_predict(classifier, original_dataframe, training_dataframe, traini
     """
 
     print "Missing data analysis ..."
-    print original_dataframe.isnull().sum()
+    print target_dataframe.isnull().sum()
 
     # Temporarly, we are dropping NA values
-    temp_dataframe = original_dataframe.dropna(subset=['GitHub Distance in Releases', 'Git Resolution Time'])
+    target_dataframe = target_dataframe.dropna(subset=preprocessing.GIT_METRICS)
 
     # The following repositories were not in the training dataset
     repository_label = 'Git Repository'
-    temp_dataframe = temp_dataframe[~temp_dataframe[repository_label].isin(['kylin', 'helix', 'mesos'])]
+    target_dataframe = target_dataframe[~target_dataframe[repository_label].isin(['kylin', 'helix', 'mesos'])]
 
+    before_preprocessing = target_dataframe.copy()
     print "Starting prediction process..."
-    issues_dataframe, encoded_priorities = preprocessing.encode_and_split(temp_dataframe, class_label,
-                                                                          numerical_features,
-                                                                          nominal_features)
+    target_features, target_labels = preprocessing.encode_and_split(target_dataframe, class_label,
+                                                                    numerical_features,
+                                                                    nominal_features)
 
-    training_std, original_std = preprocessing.escale_numerical_features(numerical_features, training_dataframe,
-                                                                         issues_dataframe)
+    training_std, target_features_std = preprocessing.escale_numerical_features(numerical_features, training_dataframe,
+                                                                                target_features)
 
-    classifier.fit(training_std, training_labels)
-    print "Training score: ", classifier.score(training_std, training_labels)
-    train_predictions = classifier.predict(training_std)
+    features_for_training = training_std
+    features_for_prediction = target_features_std
+
+    if isinstance(classifier, RandomForestClassifier):
+        features_for_training = training_dataframe
+        features_for_prediction = target_features
+
+    print "Training classifier using a ", features_for_training.shape, " dataset ..."
+    classifier.fit(features_for_training, training_labels)
+
+    print "Training score: ", classifier.score(features_for_training, training_labels)
+    train_predictions = classifier.predict(features_for_training)
     print classification_report(y_true=training_labels, y_pred=train_predictions)
 
-    print "Predicting ", len(original_std.index), " issue's priority"
-    test_predictions = classifier.predict(original_std)
+    print "Predicting ", len(features_for_prediction.index), " issues priority"
+    test_predictions = classifier.predict(features_for_prediction)
 
     predicted_label = 'Predicted ' + class_label
-    temp_dataframe[predicted_label] = test_predictions
+
+    print "Target dataframe after preprocessing: ", before_preprocessing.shape
+    print "Original class label ", target_labels.shape, target_labels.unique()
+    print "Predicted class label ", test_predictions.shape, np.unique(test_predictions)
+
+    before_preprocessing[class_label] = target_labels.values
+    before_preprocessing[predicted_label] = test_predictions
 
     file_name = "Including_Prediction.csv"
-    temp_dataframe.to_csv(file_name, index=False)
+    before_preprocessing.to_csv(file_name, index=False)
 
     print "File ready: ", file_name
 
-    for repository in temp_dataframe[repository_label].unique():
-        issues_for_repo = temp_dataframe[temp_dataframe[repository_label] == repository]
-        severe_issues = issues_for_repo[issues_for_repo['Severe']]
+    results_dataframe = pd.DataFrame()
+    for repository in before_preprocessing[repository_label].unique():
+        issues_for_repo = before_preprocessing[before_preprocessing[repository_label] == repository]
+        issues_in_repo = len(issues_for_repo.index)
+
+        severe_issues = issues_for_repo[issues_for_repo[class_label]]
         inflated_issues = severe_issues[~severe_issues[predicted_label]]
 
-        print "repository: ", repository, " Reported Severe: ", len(severe_issues.index), " Severe inflated: ", len(
-            inflated_issues.index), ' ratio: ', len(inflated_issues.index) / float(len(severe_issues.index))
+        results_dataframe = results_dataframe.append(
+            [[repository, issues_in_repo, len(severe_issues.index), len(inflated_issues.index),
+              len(inflated_issues.index) / float(len(severe_issues.index))]],
+            ignore_index=True)
+
+        print "repository: ", repository, "\t Issues in Repo: ", issues_in_repo, "\t Reported Severe: ", len(
+            severe_issues.index), "\t Severe inflated: ", len(
+            inflated_issues.index), '\t ratio: ', len(inflated_issues.index) / float(len(severe_issues.index))
+
+    results_dataframe.columns = ["Repository", "Issues in Repository", "Reported Severe", "Severe Inflated",
+                                 "Inflation Ratio"]
+    results_dataframe.to_csv("prediction_results.csv", index=False)
 
 
 def main():
